@@ -1,0 +1,38 @@
+# ============================================
+# Docker 忽略文件
+# ============================================
+# 说明：指定哪些文件不需要打包到 Docker 镜像中
+
+# Git
+.git
+.gitignore
+
+# IDE
+.idea
+.vscode
+*.iml
+
+# Maven
+target/
+!.mvn/wrapper/maven-wrapper.jar
+
+# Logs
+logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker（避免递归）
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Shell scripts（不需要打包到镜像）
+*.sh
+
+# Documentation（可选，减小镜像体积）
+*.md
+API_DOCUMENTATION.md
+API_TEST.apifox.json

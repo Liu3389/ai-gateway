@@ -470,6 +470,284 @@ java -jar target/ai-gateway-platform-1.0.0.jar
 
 ---
 
+## 🐳 Docker 一键部署（推荐）
+
+### 优势
+
+- ✅ **零配置**：无需安装 MySQL、Redis、Java
+- ✅ **跨平台**：Windows、macOS、Linux 通用
+- ✅ **隔离性**：不污染宿主机环境
+- ✅ **易迁移**：打包成镜像，一键部署到任何服务器
+- ✅ **可扩展**：轻松实现负载均衡和集群部署
+
+### 前置要求
+
+只需安装 Docker Desktop：
+
+- **macOS**: `brew install --cask docker`
+- **Windows**: 下载 [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+- **Linux**: `curl -fsSL https://get.docker.com | sh`
+
+验证安装：
+
+```bash
+docker --version
+docker compose version
+```
+
+### 快速开始（3步完成）
+
+#### 方式一：一键部署脚本（最简单）
+
+```bash
+# 1. 克隆项目
+git clone <repository-url>
+cd Aiplatform-demo
+
+# 2. 运行部署脚本
+./deploy.sh
+
+# 3. 访问应用
+# http://localhost:8080/api
+```
+
+脚本会自动：
+
+- 检查 Docker 环境
+- 构建应用镜像
+- 启动 MySQL、Redis、Application 三个容器
+- 初始化数据库
+- 验证服务健康状态
+
+#### 方式二：手动部署
+
+```bash
+# 1. 配置环境变量（可选）
+cp .env.example .env
+# 编辑 .env 文件，设置 OPENAI_API_KEY
+
+# 2. 构建并启动
+docker compose up -d
+
+# 3. 查看日志
+docker compose logs -f app
+
+# 4. 停止服务
+docker compose down
+```
+
+### 常用命令速查
+
+```bash
+# 启动所有服务
+docker compose up -d
+
+# 停止所有服务
+docker compose down
+
+# 查看服务状态
+docker compose ps
+
+# 查看应用日志
+docker compose logs -f app
+
+# 查看 MySQL 日志
+docker compose logs -f mysql
+
+# 重启某个服务
+docker compose restart app
+
+# 进入应用容器
+docker exec -it ai-gateway-app sh
+
+# 进入 MySQL 容器
+docker exec -it ai-gateway-mysql mysql -uroot -p123456
+
+# 重新构建镜像
+docker compose build --no-cache
+
+# 完全清理（包括数据卷）
+docker compose down -v
+```
+
+### 配置说明
+
+#### 修改 OpenAI API Key
+
+**方法1：使用 .env 文件（推荐）**
+
+```bash
+cp .env.example .env
+# 编辑 .env 文件
+OPENAI_API_KEY=sk-your-real-api-key
+```
+
+**方法2：直接在 docker-compose.yml 中修改**
+
+```yaml
+environment:
+  OPENAI_API_KEY: sk-your-real-api-key
+```
+
+**方法3：运行时指定**
+
+```bash
+OPENAI_API_KEY=sk-your-key docker compose up -d
+```
+
+#### 修改端口
+
+编辑 `docker-compose.yml`：
+
+```yaml
+services:
+  app:
+    ports:
+      - "8080:8080"  # 改为 "9090:8080"
+```
+
+#### 数据持久化
+
+数据自动保存在 Docker volumes 中：
+
+- MySQL 数据：`mysql-data`
+- Redis 数据：`redis-data`
+- 应用日志：`./logs` 目录
+
+查看数据卷：
+
+```bash
+docker volume ls
+docker volume inspect ai-gateway-platform_mysql-data
+```
+
+### 部署到其他虚拟机
+
+#### 步骤1：导出镜像
+
+在开发机器上：
+
+```bash
+# 构建镜像
+docker compose build
+
+# 导出为 tar 文件
+docker save ai-gateway-platform-app:latest > ai-gateway.tar
+```
+
+#### 步骤2：传输到目标服务器
+
+```bash
+# 使用 scp 传输
+scp ai-gateway.tar user@remote-server:/path/to/
+
+# 或使用 rsync
+rsync -avz ai-gateway.tar user@remote-server:/path/to/
+```
+
+#### 步骤3：在目标服务器上导入并运行
+
+```bash
+# 1. 导入镜像
+docker load < ai-gateway.tar
+
+# 2. 复制项目文件到服务器
+git clone <repository-url>
+cd Aiplatform-demo
+
+# 3. 配置环境变量
+cp .env.example .env
+# 编辑 .env，设置正确的 OPENAI_API_KEY
+
+# 4. 启动服务
+docker compose up -d
+
+# 5. 验证
+docker compose ps
+curl http://localhost:8080/api/actuator/health
+```
+
+### 故障排查
+
+#### 问题1：容器启动失败
+
+```bash
+# 查看详细日志
+docker compose logs app
+
+# 常见原因：
+# - MySQL/Redis 未就绪（等待健康检查通过）
+# - 端口被占用
+# - 内存不足
+```
+
+#### 问题2：无法连接数据库
+
+```bash
+# 检查 MySQL 是否运行
+docker compose ps mysql
+
+# 查看 MySQL 日志
+docker compose logs mysql
+
+# 测试连接
+docker exec -it ai-gateway-mysql mysql -uroot -p123456 -e "SHOW DATABASES;"
+```
+
+#### 问题3：应用健康检查失败
+
+```bash
+# 检查应用日志
+docker compose logs app
+
+# 进入容器调试
+docker exec -it ai-gateway-app sh
+
+# 检查配置文件
+cat /app/application.yml
+```
+
+#### 问题4：端口冲突
+
+```bash
+# 查看端口占用
+lsof -i:8080
+
+# 修改 docker-compose.yml 中的端口映射
+ports:
+  - "9090:8080"  # 改为其他端口
+```
+
+### 性能优化
+
+#### 调整 JVM 参数
+
+编辑 `docker-compose.yml`：
+
+```yaml
+services:
+  app:
+    environment:
+      JAVA_OPTS: -Xms1g -Xmx2g -XX:+UseG1GC
+```
+
+#### 限制容器资源
+
+```yaml
+services:
+  app:
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+```
+
+---
+
 ## 👥 测试账号
 
 | 用户名        | 密码       | 角色          | userId | 说明                    |
@@ -524,11 +802,18 @@ ai-gateway-platform/
 │   └── application.yml   # 应用配置文件
 ├── API_TEST.apifox.json  # Apifox 接口文档
 ├── API_DOCUMENTATION.md  # 详细 API 文档
+├── DOCKER_GUIDE.md       # Docker 零基础入门指南
 ├── testdata.sql          # 测试数据
+├── Dockerfile            # Docker 镜像构建文件
+├── docker-compose.yml    # Docker Compose 编排文件
+├── .dockerignore         # Docker 忽略文件
+├── .env.example          # 环境变量示例
+├── deploy.sh             # Docker 一键部署脚本
+├── docker-stop.sh        # Docker 停止脚本
 ├── check_env.sh          # 环境检查脚本
 ├── init_db.sh            # 数据库初始化脚本
-├── start.sh              # 启动脚本
-└── stop.sh               # 停止脚本
+├── start.sh              # 启动脚本（传统方式）
+└── stop.sh               # 停止脚本（传统方式）
 ```
 
 ---

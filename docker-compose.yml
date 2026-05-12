@@ -1,0 +1,119 @@
+# ============================================
+# AI Gateway Platform - Docker Compose 编排文件
+# ============================================
+# 说明：
+#   1. 管理三个服务：MySQL、Redis、Application
+#   2. 使用 Docker 网络实现服务间通信
+#   3. 数据持久化到宿主机目录
+# 使用方法：
+#   docker-compose up -d          # 启动所有服务
+#   docker-compose down           # 停止所有服务
+#   docker-compose logs -f app    # 查看应用日志
+# ============================================
+
+version: '3.8'
+
+# 定义服务
+services:
+  
+  # ========== MySQL 数据库服务 ==========
+  mysql:
+    image: mysql:8.0
+    container_name: ai-gateway-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_DATABASE: ai_gateway
+      TZ: Asia/Shanghai
+    ports:
+      - "3306:3306"
+    volumes:
+      # 数据持久化
+      - mysql-data:/var/lib/mysql
+      # 初始化脚本（首次启动时执行）
+      - ./src/main/resources/sql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./testdata.sql:/docker-entrypoint-initdb.d/02-testdata.sql
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+    networks:
+      - ai-gateway-network
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p123456" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ========== Redis 缓存服务 ==========
+  redis:
+    image: redis:7-alpine
+    container_name: ai-gateway-redis
+    restart: unless-stopped
+    command: redis-server --requirepass 123321 --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      # 数据持久化
+      - redis-data:/data
+    networks:
+      - ai-gateway-network
+    healthcheck:
+      test: [ "CMD", "redis-cli", "-a", "123321", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ========== 应用服务 ==========
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai-gateway-app
+    restart: unless-stopped
+    environment:
+      # 数据库配置（使用服务名作为主机名）
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/ai_gateway?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: 123456
+      # Redis 配置
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_PASSWORD: 123321
+      # OpenAI API Key（从环境变量读取，不要硬编码）
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-your-openai-api-key-here}
+      # JVM 参数
+      JAVA_OPTS: -Xms512m -Xmx1024m -XX:+UseG1GC
+      TZ: Asia/Shanghai
+    ports:
+      - "8080:8080"
+    volumes:
+      # 日志持久化
+      - ./logs:/app/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - ai-gateway-network
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/api/actuator/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+# 定义网络
+networks:
+  ai-gateway-network:
+    driver: bridge
+
+# 定义数据卷（持久化存储）
+volumes:
+  mysql-data:
+    driver: local
+  redis-data:
+    driver: local
