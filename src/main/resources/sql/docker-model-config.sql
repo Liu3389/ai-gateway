@@ -1,9 +1,9 @@
 -- Docker环境模型配置（不含API Key占位符，需替换真实Key）
 INSERT INTO model_config (id, model_name, provider, base_url, api_key, input_price, output_price, status, create_time,
                           update_time)
-VALUES (1, 'deepseek-v4-pro', 'deepseek', 'https://api.deepseek.com/v1/chat/completions', 'sk-your-deepseek-key',
+VALUES (1, 'deepseek-v4-pro', 'deepseek', 'https://api.deepseek.com', 'sk-db16b2f7ecf5404c9b125ecdc90f985d',
         0.00014, 0.00028, 1, NOW(), NOW()),
-       (2, 'deepseek-v4-flash', 'deepseek', 'https://api.deepseek.com/v1/chat/completions', 'sk-your-deepseek-key',
+       (2, 'deepseek-v4-flash', 'deepseek', 'https://api.deepseek.com', 'sk-db16b2f7ecf5404c9b125ecdc90f985d',
         0.00007, 0.00014, 1, NOW(), NOW())
 ON DUPLICATE KEY UPDATE model_name=VALUES(model_name);
 

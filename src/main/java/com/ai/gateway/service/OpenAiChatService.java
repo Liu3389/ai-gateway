@@ -125,7 +125,7 @@ public class OpenAiChatService {
             Map<String, Object> requestBody = buildRequestBody(request);
             
             // 调用OpenAI API
-            HttpResponse response = HttpRequest.post(modelConfig.getBaseUrl())
+            HttpResponse response = HttpRequest.post(resolveChatUrl(modelConfig.getBaseUrl()))
                     .header("Authorization", "Bearer " + modelConfig.getApiKey())
                     .header("Content-Type", "application/json")
                     .body(objectMapper.writeValueAsString(requestBody))
@@ -211,7 +211,7 @@ public class OpenAiChatService {
                 requestBody.put("stream", true);
                 
                 // 调用OpenAI Stream API
-                HttpResponse response = HttpRequest.post(modelConfig.getBaseUrl())
+                HttpResponse response = HttpRequest.post(resolveChatUrl(modelConfig.getBaseUrl()))
                         .header("Authorization", "Bearer " + modelConfig.getApiKey())
                         .header("Content-Type", "application/json")
                         .body(objectMapper.writeValueAsString(requestBody))
@@ -254,16 +254,17 @@ public class OpenAiChatService {
                         
                         try {
                             JsonNode node = objectMapper.readTree(data);
-                            String content = node.path("choices").get(0).path("delta").path("content").asText();
-                            
-                            if (content != null && !content.isEmpty()) {
-                                fullContent.append(content);
-                                
-                                // 发送数据块到前端
-                                Map<String, Object> eventData = new HashMap<>();
-                                eventData.put("content", content);
-                                emitter.send(SseEmitter.event().name("message").data(eventData));
+                            JsonNode contentNode = node.path("choices").get(0).path("delta").path("content");
+                            if (contentNode.isNull() || contentNode.asText().isEmpty()) {
+                                continue;
                             }
+                            String content = contentNode.asText();
+
+                            fullContent.append(content);
+
+                            Map<String, Object> eventData = new HashMap<>();
+                            eventData.put("content", content);
+                            emitter.send(SseEmitter.event().name("message").data(eventData));
                         } catch (Exception e) {
                             log.warn("解析流式数据失败", e);
                         }
@@ -333,6 +334,12 @@ public class OpenAiChatService {
         });
         
         return emitter;
+    }
+
+    private String resolveChatUrl(String baseUrl) {
+        if (baseUrl == null || baseUrl.isBlank()) return baseUrl;
+        if (baseUrl.contains("/chat/completions")) return baseUrl;
+        return baseUrl.replaceAll("/+$", "") + "/v1/chat/completions";
     }
 
     /**
