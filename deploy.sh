@@ -1,203 +1,193 @@
 #!/bin/bash
-
 # ============================================
-# AI Gateway Platform - 一键部署脚本（Docker）
+# AI Gateway Platform - Docker 一键部署脚本
 # ============================================
-# 使用方法：
-#   部署到本机：  ./deploy.sh
-#   导出CentOS9： ./deploy.sh export
+# 适配环境:
+#   macOS (Apple Silicon / Intel)
+#   Linux   (Ubuntu / CentOS / Debian)
+#
+# 使用方法:
+#   ./deploy.sh          本机构建+启动（DockerHub 被墙时自动用 DaoCloud 镜像）
+#   ./deploy.sh export   本机构建 arm64 镜像并导出tar + 生成VM部署包
+#   ./deploy.sh build    仅编译 jar 包（不涉及Docker）
 # ============================================
-
 set -e
 
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
+GREEN='\033[0;32m'; RED='\033[0;31m'; YELLOW='\033[1;33m'; NC='\033[0m'
 
 echo "========================================="
-echo "AI Gateway Platform - Docker 一键部署"
+echo "AI Gateway Platform - Docker 部署"
 echo "========================================="
-echo ""
 
-# ========== 检查 Docker ==========
-if ! command -v docker &> /dev/null; then
-    echo -e "${RED}❌ Docker 未安装${NC}"
-    echo "  macOS: brew install --cask docker"
-    echo "  Linux: curl -fsSL https://get.docker.com | sh"
-    exit 1
+# ======================== 检测平台 ========================
+ARCH=$(uname -m)
+OS=$(uname -s)
+case "$ARCH" in
+  arm64|aarch64) DOCKER_PLATFORM="linux/arm64" ;;
+  x86_64|amd64)  DOCKER_PLATFORM="linux/amd64" ;;
+  *) echo -e "${RED}不支持的架构: $ARCH${NC}"; exit 1 ;;
+esac
+echo "平台: $OS / $ARCH → Docker $DOCKER_PLATFORM"
+
+# ======================== 检查 Java + Maven ========================
+JDK=""
+for candidate in "$JAVA_HOME" \
+  "/Users/a1234/Library/Java/JavaVirtualMachines/corretto-21.0.10/Contents/Home" \
+  "/usr/lib/jvm/java-21-openjdk" \
+  "/usr/lib/jvm/java-17-openjdk"; do
+  [ -f "$candidate/bin/java" ] && { JDK="$candidate"; break; }
+done
+[ -z "$JDK" ] && { echo -e "${RED}未找到 JDK 21+，请设置 JAVA_HOME${NC}"; exit 1; }
+export JAVA_HOME="$JDK"
+export PATH="$JAVA_HOME/bin:$PATH"
+
+if ! command -v mvn &>/dev/null; then
+  echo -e "${RED}❌ Maven 未安装，请安装后重试${NC}"; exit 1
 fi
 
-DOCKER_VERSION=$(docker --version)
-COMPOSE_VERSION=$(docker compose version 2>/dev/null || echo "未安装")
-echo -e "${GREEN}✅ $DOCKER_VERSION${NC}"
-echo -e "${GREEN}✅ $COMPOSE_VERSION${NC}"
+# ======================== 编译 ========================
+echo -e "${YELLOW}[1/5] 编译项目...${NC}"
+mvn clean package -DskipTests -q
+echo -e "${GREEN}✅ 编译完成${NC}"
 
-# ========== 模式：导出镜像给 CentOS9 ==========
-if [ "$1" = "export" ]; then
+# ======================== 模式: 仅编译 ========================
+if [ "$1" = "build" ]; then
+  echo -e "${GREEN}✅ jar 位于: target/ai-gateway-platform-1.0.0.jar${NC}"
+  exit 0
+fi
 
-    echo ""
-    echo -e "${YELLOW}========== 导出 Docker 镜像（移植到 CentOS9）==========${NC}"
-    echo ""
+# ======================== 检查 Docker ========================
+if ! command -v docker &>/dev/null; then
+  echo -e "${RED}❌ Docker 未安装${NC}"
+  echo "  macOS: brew install --cask docker"
+  echo "  Linux: curl -fsSL https://get.docker.com | sh"
+  exit 1
+fi
 
-    # 先编译
-    echo -e "${YELLOW}[1/4] 编译项目...${NC}"
-    export JAVA_HOME=$(/usr/libexec/java_home -v 21 2>/dev/null || echo "$JAVA_HOME")
-    mvn clean package -DskipTests -q
-    echo -e "${GREEN}✅ 编译完成${NC}"
+# ======================== 拉取基础镜像（DaoCloud 国内加速）=====================
+IMAGE_MYSQL="mysql:8.0"
+IMAGE_REDIS="redis:7-alpine"
+IMAGE_JRE="eclipse-temurin:21-jre-alpine"
 
-    # 构建 arm64 镜像（Mac Apple Silicon + CentOS9 ARM虚拟机）
-    echo -e "${YELLOW}[2/4] 构建 arm64 Docker 镜像...${NC}"
-    docker buildx build --platform linux/arm64 -t ai-gateway-platform:latest --load .
-    echo -e "${GREEN}✅ 镜像构建完成${NC}"
+pull_with_fallback() {
+  local name="$1" dao="$2"
+  if docker pull "$name" 2>/dev/null | grep -q "Downloaded"; then
+    echo -e "${GREEN}✅ $name (Docker Hub)${NC}"
+  else
+    echo -e "${YELLOW}Docker Hub 不可达，切换 DaoCloud 镜像...${NC}"
+    docker pull "$dao" && docker tag "$dao" "$name" && echo -e "${GREEN}✅ $name (DaoCloud)${NC}"
+  fi
+}
 
-    # 导出为 tar
-    echo -e "${YELLOW}[3/4] 导出镜像文件...${NC}"
-    docker save ai-gateway-platform:latest -o ai-gateway-platform.tar
-    FILE_SIZE=$(du -h ai-gateway-platform.tar | cut -f1)
-    echo -e "${GREEN}✅ 镜像已导出: ai-gateway-platform.tar (${FILE_SIZE})${NC}"
+echo -e "${YELLOW}[2/5] 拉取基础镜像...${NC}"
+pull_with_fallback "$IMAGE_JRE"   "docker.m.daocloud.io/library/eclipse-temurin:21-jre-alpine"
+pull_with_fallback "$IMAGE_MYSQL" "docker.m.daocloud.io/library/mysql:8.0"
+pull_with_fallback "$IMAGE_REDIS" "docker.m.daocloud.io/library/redis:7-alpine"
 
-    # 生成 CentOS9 一键导入脚本
-    echo -e "${YELLOW}[4/4] 生成 CentOS9 部署脚本...${NC}"
-    cat > centos9-deploy.sh << 'CENTOS_SCRIPT'
+# ======================== 构建应用镜像 ========================
+echo -e "${YELLOW}[3/5] 构建应用镜像 ($DOCKER_PLATFORM)...${NC}"
+docker build --platform "$DOCKER_PLATFORM" -t ai-gateway-platform:latest .
+echo -e "${GREEN}✅ 应用镜像构建完成${NC}"
+
+# ======================== 导出 tar（本机和 export 都需要）=======================
+echo -e "${YELLOW}[4/5] 导出镜像包...${NC}"
+docker save ai-gateway-platform:latest "$IMAGE_MYSQL" "$IMAGE_REDIS" -o ai-gateway-images.tar
+SIZE=$(du -h ai-gateway-images.tar | cut -f1)
+echo -e "${GREEN}✅ ai-gateway-images.tar (${SIZE})${NC}"
+
+# ======================== 生成 VM 部署脚本（通用）=======================
+cat > docker-deploy.sh << 'DEPLOY'
 #!/bin/bash
-# ============================================
-# AI Gateway Platform - CentOS9 一键部署
-# ============================================
-# 前置条件：CentOS9已安装Docker，本机已有 ai-gateway-platform.tar
-# 使用方式：./centos9-deploy.sh
-# ============================================
-
 set -e
-
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
-
 echo "========================================="
-echo "AI Gateway Platform - CentOS9 部署"
+echo "AI Gateway Platform - Docker 部署"
 echo "========================================="
 
-# 检查 Docker
-if ! command -v docker &> /dev/null; then
-    echo -e "${RED}❌ Docker 未安装${NC}"
-    echo "CentOS9 安装Docker:"
-    echo "  sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo"
-    echo "  sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin"
-    echo "  sudo systemctl enable --now docker"
-    exit 1
+# 安装 Docker（如未安装）
+if ! command -v docker &>/dev/null; then
+  echo "[安装 Docker...]"
+  if [ -f /etc/os-release ]; then
+    . /etc/os-release
+    case "$ID" in
+      centos|rhel|fedora)
+        dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo 2>/dev/null || true
+        dnf install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin ;;
+      ubuntu|debian)
+        apt-get update && apt-get install -y docker.io docker-compose-v2 ;;
+      *) curl -fsSL https://get.docker.com | sh ;;
+    esac
+    systemctl enable --now docker
+  fi
+  echo "✅ Docker 安装完成"
+else
+  systemctl start docker 2>/dev/null || true
 fi
 
-# 导入镜像
-echo -e "${YELLOW}[1/3] 导入镜像...${NC}"
-if [ ! -f "ai-gateway-platform.tar" ]; then
-    echo -e "${RED}❌ 未找到 ai-gateway-platform.tar${NC}"
-    echo "请确保此文件和 centos9-deploy.sh 在同一目录"
-    exit 1
-fi
-docker load -i ai-gateway-platform.tar
-echo -e "${GREEN}✅ 镜像导入完成${NC}"
-
-# 启动服务
-echo -e "${YELLOW}[2/3] 启动服务...${NC}"
-docker compose up -d
-echo -e "${GREEN}✅ 服务已启动${NC}"
-
-# 等待就绪
-echo -e "${YELLOW}[3/3] 等待服务就绪...${NC}"
-for i in {1..60}; do
-    if curl -s http://localhost:8080/api/actuator/health > /dev/null 2>&1; then
-        echo ""
-        echo -e "${GREEN}=========================================${NC}"
-        echo -e "${GREEN}✅ AI Gateway Platform 部署成功！${NC}"
-        echo -e "${GREEN}=========================================${NC}"
-        echo ""
-        echo "  访问地址: http://$(hostname -I 2>/dev/null | awk '{print $1}' || echo 'YOUR_VM_IP'):8080/api"
-        echo "  登录账号: superadmin / admin123"
-        echo ""
-        echo "  查看日志: docker compose logs -f app"
-        echo "  停止服务: docker compose down"
-        exit 0
-    fi
-    echo -n "."
-    sleep 3
-done
-
-echo -e "${RED}❌ 启动超时，请检查日志: docker compose logs${NC}"
-exit 1
-CENTOS_SCRIPT
-
-    chmod +x centos9-deploy.sh
-
-    echo ""
-    echo -e "${GREEN}=========================================${NC}"
-    echo -e "${GREEN}✅ 导出完成！${NC}"
-    echo -e "${GREEN}=========================================${NC}"
-    echo ""
-    echo "生成的文件："
-    echo "  1. ai-gateway-platform.tar  — Docker 镜像（${FILE_SIZE})"
-    echo "  2. centos9-deploy.sh         — CentOS9 一键部署脚本"
-    echo "  3. docker-compose.yml        — 服务编排配置"
-    echo ""
-    echo "移植到 CentOS9 虚拟机步骤："
-    echo "  1. scp ai-gateway-platform.tar user@centos9:/path/"
-    echo "  2. scp centos9-deploy.sh user@centos9:/path/"
-    echo "  3. scp docker-compose.yml user@centos9:/path/"
-    echo "  4. scp src/main/resources/sql/ user@centos9:/path/src/main/resources/sql/"
-    echo "  5. ssh user@centos9 'cd /path && ./centos9-deploy.sh'"
-    echo ""
-    exit 0
-fi
-
-# ========== 检查依赖文件 ==========
-echo -e "${YELLOW}步骤 2: 检查配置文件...${NC}"
-if [ ! -f "docker-compose.yml" ]; then
-    echo -e "${RED}❌ docker-compose.yml 不存在${NC}"
-    exit 1
-fi
-if [ ! -f "Dockerfile" ]; then
-    echo -e "${RED}❌ Dockerfile 不存在${NC}"
-    exit 1
-fi
-echo -e "${GREEN}✅ 配置文件存在${NC}"
-
-# ========== 清理旧容器 ==========
-echo -e "${YELLOW}步骤 3: 清理旧容器...${NC}"
+echo "[导入镜像...]"
+docker load -i ai-gateway-images.tar
+echo "[启动服务...]"
 docker compose down 2>/dev/null || true
-echo -e "${GREEN}✅ 清理完成${NC}"
+docker compose up -d
 
-# ========== 构建并启动 ==========
-echo -e "${YELLOW}步骤 4: 构建并启动所有服务...${NC}"
-echo "首次构建需下载Docker镜像，约3-5分钟..."
-
-docker compose up -d --build
-
-# ========== 等待就绪 ==========
-echo -e "${YELLOW}步骤 5: 等待服务就绪...${NC}"
-MAX_WAIT=120
-WAIT_COUNT=0
-
-while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
-    if docker compose ps app 2>/dev/null | grep -q "healthy"; then
-        echo ""
-        echo -e "${GREEN}=========================================${NC}"
-        echo -e "${GREEN}✅ 部署成功！${NC}"
-        echo -e "${GREEN}=========================================${NC}"
-        echo ""
-        echo "  访问地址: http://localhost:8080/api"
-        echo "  登录账号: superadmin / admin123"
-        echo ""
-        echo "  查看日志: docker compose logs -f app"
-        echo "  停止服务: docker compose down"
-        echo ""
-        exit 0
-    fi
-    WAIT_COUNT=$((WAIT_COUNT + 5))
-    echo -n "."
-    sleep 5
+echo "等待服务就绪..."
+for i in $(seq 1 30); do
+  if curl -s http://localhost:8080/api/actuator/health 2>/dev/null | grep -q UP; then
+    IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+    echo ""
+    echo "========================================="
+    echo "✅ 部署成功！"
+    echo "  地址: http://${IP:-localhost}:8080/api"
+    echo "  登录: superadmin / admin123"
+    echo "========================================="
+    exit 0
+  fi
+  sleep 3; echo -n "."
 done
+echo "❌ 超时，查看日志: docker compose logs app"; exit 1
+DEPLOY
+chmod +x docker-deploy.sh
 
-echo ""
-echo -e "${RED}❌ 启动超时，查看日志: docker compose logs${NC}"
-exit 1
+# ======================== 模式: export → 仅出包不启动 ========================
+if [ "$1" = "export" ]; then
+  # 准备 SQL 文件
+  mkdir -p /tmp/ai-gateway-sql
+  cp src/main/resources/sql/schema.sql src/main/resources/sql/docker-model-config.sql /tmp/ai-gateway-sql/
+  echo ""
+  echo -e "${GREEN}=========================================${NC}"
+  echo -e "${GREEN}✅ 导出完成 ($DOCKER_PLATFORM)${NC}"
+  echo -e "${GREEN}=========================================${NC}"
+  echo ""
+  echo "生成的文件:"
+  echo "  1. ai-gateway-images.tar  镜像包 (${SIZE})"
+  echo "  2. docker-compose.yml     服务编排"
+  echo "  3. docker-deploy.sh       VM 一键部署"
+  echo ""
+  echo "传输到 CentOS9 虚拟机 (10.211.55.10):"
+  echo "  scp ai-gateway-images.tar root@10.211.55.10:/opt/ai-gateway/"
+  echo "  scp docker-compose.yml root@10.211.55.10:/opt/ai-gateway/"
+  echo "  scp docker-deploy.sh root@10.211.55.10:/opt/ai-gateway/"
+  echo "  mkdir -p /tmp/sql && cp src/main/resources/sql/schema.sql src/main/resources/sql/docker-model-config.sql /tmp/sql/"
+  echo "  scp -r /tmp/sql root@10.211.55.10:/opt/ai-gateway/"
+  echo "  ssh root@10.211.55.10 'cd /opt/ai-gateway && bash docker-deploy.sh'"
+  exit 0
+fi
+
+# ======================== 模式: 本机启动 ========================
+echo -e "${YELLOW}[5/5] 启动服务...${NC}"
+docker compose down 2>/dev/null || true
+docker compose up -d
+
+echo "等待服务就绪..."
+for i in $(seq 1 30); do
+  if docker compose ps app 2>/dev/null | grep -q "healthy"; then
+    echo ""
+    echo -e "${GREEN}=========================================${NC}"
+    echo -e "${GREEN}✅ 部署成功！${NC}"
+    echo -e "${GREEN}=========================================${NC}"
+    echo "  地址: http://localhost:8080/api"
+    echo "  登录: superadmin / admin123"
+    exit 0
+  fi
+  sleep 3; echo -n "."
+done
+echo -e "${RED}❌ 超时: docker compose logs app${NC}"; exit 1

@@ -1,9 +1,10 @@
 # AI Gateway Platform - 超级详细 API 接口文档
 
-> **Base URL**: `http://localhost:8080/api`  
+> **当前部署**: `http://10.211.55.10:8080/api`  
+> **本地开发**: `http://localhost:8080/api`  
 > **Content-Type**: `application/json`  
 > **字符编码**: UTF-8  
-> **架构**: 前后端分离，无Session，通过 Header 传递身份
+> **架构**: 前后端分离，UUID Token 认证（登录获取，24h有效），API Key 认证（Chat接口）
 
 ---
 

@@ -4,15 +4,27 @@
 # ============================================
 # 使用方式: ./deploy-vm.sh
 # 前置条件: 虚拟机已有 JDK 21 + MySQL + Redis 在运行
+# 如提示输入密码，密码为 9999
+# 可选先行免密: ssh-copy-id root@10.211.55.10
 # ============================================
 set -e
 
 VM_IP="10.211.55.10"
 VM_USER="root"
+VM_PASS="9999"
 VM_DIR="/opt/ai-gateway"
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
+
+# 自动检测是否有 sshpass，没有则尝试免密
+if command -v sshpass &> /dev/null; then
+    SSH_CMD="sshpass -p ${VM_PASS} ssh -o StrictHostKeyChecking=no"
+    SCP_CMD="sshpass -p ${VM_PASS} scp -o StrictHostKeyChecking=no"
+else
+    SSH_CMD="ssh -o StrictHostKeyChecking=no"
+    SCP_CMD="scp -o StrictHostKeyChecking=no"
+fi
 
 echo "========================================="
 echo "AI Gateway Platform - 部署到 ${VM_IP}"
@@ -93,25 +105,25 @@ ls -lh "$DEPLOY_DIR/"
 
 # 3. 检查虚拟机 JDK
 echo -e "${YELLOW}[3/5] 检查虚拟机 JDK...${NC}"
-if ssh -o ConnectTimeout=5 "${VM_USER}@${VM_IP}" "java -version 2>&1" | grep -q "21"; then
+if ${SSH_CMD} "${VM_USER}@${VM_IP}" "java -version 2>&1" | grep -q "21"; then
     echo -e "${GREEN}✅ 虚拟机 JDK 21 已就绪${NC}"
 else
     echo -e "${YELLOW}⚠️  虚拟机需安装 JDK 21，正在安装...${NC}"
-    ssh "${VM_USER}@${VM_IP}" "dnf install -y java-21-openjdk" || echo "请手动安装: dnf install -y java-21-openjdk"
+    ${SSH_CMD} "${VM_USER}@${VM_IP}" "dnf install -y java-21-openjdk" || echo "请手动安装: dnf install -y java-21-openjdk"
 fi
 
 # 4. 传输文件
 echo -e "${YELLOW}[4/5] 传输文件到虚拟机...${NC}"
-ssh "${VM_USER}@${VM_IP}" "mkdir -p ${VM_DIR}/logs"
-scp "$DEPLOY_DIR/app.jar" "${VM_USER}@${VM_IP}:${VM_DIR}/"
-scp "$DEPLOY_DIR/start.sh" "${VM_USER}@${VM_IP}:${VM_DIR}/"
-scp "$DEPLOY_DIR/stop.sh" "${VM_USER}@${VM_IP}:${VM_DIR}/"
-scp "$DEPLOY_DIR/status.sh" "${VM_USER}@${VM_IP}:${VM_DIR}/"
+${SSH_CMD} "${VM_USER}@${VM_IP}" "mkdir -p ${VM_DIR}/logs"
+${SCP_CMD} "$DEPLOY_DIR/app.jar" "${VM_USER}@${VM_IP}:${VM_DIR}/"
+${SCP_CMD} "$DEPLOY_DIR/start.sh" "${VM_USER}@${VM_IP}:${VM_DIR}/"
+${SCP_CMD} "$DEPLOY_DIR/stop.sh" "${VM_USER}@${VM_IP}:${VM_DIR}/"
+${SCP_CMD} "$DEPLOY_DIR/status.sh" "${VM_USER}@${VM_IP}:${VM_DIR}/"
 echo -e "${GREEN}✅ 传输完成${NC}"
 
 # 5. 重启应用
 echo -e "${YELLOW}[5/5] 启动应用...${NC}"
-ssh "${VM_USER}@${VM_IP}" "cd ${VM_DIR} && ./stop.sh 2>/dev/null; ./start.sh"
+${SSH_CMD} "${VM_USER}@${VM_IP}" "cd ${VM_DIR} && ./stop.sh 2>/dev/null; ./start.sh"
 
 # 等待
 echo "等待应用就绪..."

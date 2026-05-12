@@ -77,47 +77,54 @@
 ### 1. Dockerfile（应用镜像构建文件）
 
 ```dockerfile
-# 第一阶段：编译
-FROM maven:3.9-eclipse-temurin-21 AS builder
+FROM eclipse-temurin:21-jre-alpine AS runtime
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 WORKDIR /app
-COPY pom.xml .
-RUN mvn dependency:go-offline -B
-COPY src ./src
-RUN mvn clean package -DskipTests -B
-
-# 第二阶段：运行
-FROM eclipse-temurin:21-jre-alpine
-WORKDIR /app
-COPY --from=builder /app/target/app.jar app.jar
+COPY target/ai-gateway-platform-1.0.0.jar app.jar
+RUN chown -R appuser:appgroup /app
+USER appuser
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD wget -qO- http://localhost:8080/api/actuator/health || exit 1
+ENTRYPOINT ["java", "-XX:+UseG1GC", "-XX:MaxRAMPercentage=75",
+  "-Djava.security.egd=file:/dev/./urandom", "-jar", "app.jar"]
 ```
 
 **关键点：**
 
-- 使用**多阶段构建**减小镜像体积（从 ~800MB 降到 ~200MB）
-- 第一阶段用 Maven 镜像编译
-- 第二阶段用轻量级 JRE 镜像运行
-- Alpine Linux 是极简版 Linux，体积小
+- 使用 `eclipse-temurin:21-jre-alpine` 轻量级 JRE 镜像
+- 非 root 用户运行（安全性）
+- 内置健康检查 wget → /actuator/health
+- G1GC 垃圾回收器 + 75% 内存上限
 
 ### 2. docker-compose.yml（服务编排文件）
 
 ```yaml
-version: '3.8'
 services:
   mysql:
     image: mysql:8.0
     environment:
-      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_ROOT_PASSWORD: root123
     volumes:
-      - mysql-data:/var/lib/mysql
+      - mysql_data:/var/lib/mysql
+      - ./sql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot123"]
 
   redis:
     image: redis:7-alpine
-    command: redis-server --requirepass 123321
+    command: redis-server --requirepass redis123 --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "redis123", "ping"]
 
   app:
-    build: .
+    image: ai-gateway-platform:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
     depends_on:
       mysql:
         condition: service_healthy
@@ -127,10 +134,9 @@ services:
 
 **关键点：**
 
-- 定义三个服务及其配置
-- `depends_on` 确保启动顺序（先 MySQL/Redis，后 App）
-- `healthcheck` 健康检查，确保服务真正可用
-- `volumes` 数据持久化，容器删除后数据不丢失
+- `depends_on` + `healthcheck` 确保 MySQL/Redis 先启动好再启动 App
+- `volumes` 挂载初始化 SQL：MySQL 容器首次启动自动建表+插入初始数据
+- `SPRING_PROFILES_ACTIVE=docker` 激活 `application-docker.yml` 配置
 
 ### 3. .dockerignore（忽略文件）
 
@@ -278,13 +284,16 @@ docker run hello-world
 
 ```bash
 # 1. 进入项目目录
-cd /path/to/Aiplatform-demo
+cd ~/Documents/Aiplatform/Aiplatform-demo
 
-# 2. 运行一键部署
+# 2. 本机启动（自动编译+拉镜像+构建+启动）
 ./deploy.sh
 
+# 或导出镜像到其他服务器
+./deploy.sh export
+
 # 3. 等待启动完成（约 2-3 分钟）
-# 看到 "✅ 所有服务启动成功！" 即可
+# 看到 "✅ 部署成功！" 即可
 ```
 
 ### Step 4: 验证部署

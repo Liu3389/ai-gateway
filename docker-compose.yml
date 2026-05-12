@@ -10,11 +10,11 @@ services:
       MYSQL_DATABASE: ai_gateway
       TZ: Asia/Shanghai
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./src/main/resources/sql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
-      - ./src/main/resources/sql/docker-model-config.sql:/docker-entrypoint-initdb.d/02-model-config.sql
+      - ./sql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./sql/docker-model-config.sql:/docker-entrypoint-initdb.d/02-model-config.sql
     healthcheck:
       test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot123" ]
       interval: 10s
@@ -31,7 +31,7 @@ services:
     container_name: ai-gateway-redis
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "6380:6379"
     command: redis-server --requirepass redis123 --appendonly yes
     volumes:
       - redis_data:/data
@@ -42,9 +42,6 @@ services:
       retries: 10
 
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
     image: ai-gateway-platform:latest
     container_name: ai-gateway-app
     restart: unless-stopped

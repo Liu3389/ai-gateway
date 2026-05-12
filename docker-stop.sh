@@ -1,28 +1,26 @@
 #!/bin/bash
-
 # ============================================
 # AI Gateway Platform - Docker 停止脚本
 # ============================================
-# 使用方法：
-#   ./docker-stop.sh
+# 用途: 停止 Docker 容器（含可选清理数据卷）
+# 使用:
+#   ./docker-stop.sh        停止容器
+#   ./docker-stop.sh clean  停止并清理数据卷（重置数据库）
+# ============================================
 
 echo "========================================="
 echo "AI Gateway Platform - 停止 Docker 服务"
 echo "========================================="
-echo ""
 
-# 停止并移除容器
-echo "正在停止服务..."
-docker compose down
-
-if [ $? -eq 0 ]; then
-    echo ""
-    echo "✅ 服务已停止"
-    echo ""
-    echo "如果需要完全清理（包括数据卷）："
-    echo "  docker compose down -v"
+if [ "$1" = "clean" ]; then
+  echo "⚠️  将删除所有数据卷（MySQL/Redis 数据将丢失）"
+  read -p "确认? (y/n): " -n 1 -r
+  echo
+  [[ $REPLY =~ ^[Yy]$ ]] || { echo "取消"; exit 0; }
+  docker compose down -v
+  echo "✅ 容器已停止，数据卷已清理"
 else
-    echo ""
-    echo "❌ 停止失败"
-    exit 1
+  docker compose down
+  echo "✅ 容器已停止（数据卷保留）"
+  echo "如需清数据: ./docker-stop.sh clean"
 fi
