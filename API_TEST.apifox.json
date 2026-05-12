@@ -3,7 +3,7 @@
   "info": {
     "title": "AI Gateway Platform API",
     "version": "1.0.0",
-    "description": "AI模型调度网关平台接口文档"
+    "description": "AI模型调度网关平台，前后端分离。所有接口统一返回 {code,message,data,timestamp}，HTTP Status始终返回200，前端通过 code===200 判断成功。\n\n测试账号(密码统一admin123): superadmin(SUPER_ADMIN) zhangsan(ADMIN) lisi(USER) wangwu(USER+UNLIMITED) zhaoliu(USER+COUNT_LIMITED) sunqi(已禁用) devteam(ADMIN+QUOTA_BASED)\n\nAPI Key: sk-2adbdb4f5ae04cacb9ea0466ac4b23f0 (用户6/SUPER_ADMIN/rateLimit500)"
   },
   "servers": [
     {
@@ -16,56 +16,46 @@
       "post": {
         "summary": "用户注册",
         "tags": [
-          "认证"
+          "01-认证 Auth"
         ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "required": [
-                  "username",
-                  "password"
-                ],
-                "properties": {
-                  "username": {
-                    "type": "string",
-                    "example": "testuser"
-                  },
-                  "password": {
-                    "type": "string",
-                    "example": "test123"
-                  },
-                  "email": {
-                    "type": "string",
-                    "example": "test@example.com"
-                  }
-                }
+                "$ref": "#/components/schemas/RegisterRequest"
+              },
+              "example": {
+                "username": "newuser",
+                "password": "admin123",
+                "email": "new@test.com"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "注册成功",
+            "description": "返回UserInfoVO",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "code": {
-                      "type": "integer",
-                      "example": 200
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "注册成功"
-                    },
-                    "data": {
-                      "type": "object"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Result_UserInfo"
+                },
+                "example": {
+                  "code": 200,
+                  "message": "注册成功",
+                  "data": {
+                    "id": 13,
+                    "username": "newuser",
+                    "email": "new@test.com",
+                    "balance": 0,
+                    "status": 1,
+                    "role": "USER",
+                    "freeApiStrategy": null,
+                    "createTime": "2026-05-12T17:30:00",
+                    "updateTime": "2026-05-12T17:30:00"
+                  },
+                  "timestamp": 1778578200000
                 }
               }
             }
@@ -77,75 +67,48 @@
       "post": {
         "summary": "用户登录",
         "tags": [
-          "认证"
+          "01-认证 Auth"
         ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "required": [
-                  "username",
-                  "password"
-                ],
-                "properties": {
-                  "username": {
-                    "type": "string",
-                    "example": "superadmin"
-                  },
-                  "password": {
-                    "type": "string",
-                    "example": "admin123"
-                  }
-                }
+                "$ref": "#/components/schemas/LoginRequest"
+              },
+              "example": {
+                "username": "zhangsan",
+                "password": "admin123"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "登录成功",
+            "description": "返回token+userInfo",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "code": {
-                      "type": "integer",
-                      "example": 200
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "登录成功"
-                    },
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "token": {
-                          "type": "string",
-                          "example": "token_1"
-                        },
-                        "userInfo": {
-                          "type": "object",
-                          "properties": {
-                            "id": {
-                              "type": "integer",
-                              "example": 1
-                            },
-                            "username": {
-                              "type": "string",
-                              "example": "superadmin"
-                            },
-                            "role": {
-                              "type": "string",
-                              "example": "SUPER_ADMIN"
-                            }
-                          }
-                        }
-                      }
+                  "$ref": "#/components/schemas/Result_Login"
+                },
+                "example": {
+                  "code": 200,
+                  "message": "登录成功",
+                  "data": {
+                    "token": "token_7",
+                    "userInfo": {
+                      "id": 7,
+                      "username": "zhangsan",
+                      "email": "zhangsan@ai.com",
+                      "balance": 50,
+                      "status": 1,
+                      "role": "ADMIN",
+                      "freeApiStrategy": null,
+                      "createTime": "2026-05-12T17:30:00",
+                      "updateTime": "2026-05-12T17:30:00"
                     }
-                  }
+                  },
+                  "timestamp": 1778578200000
                 }
               }
             }
@@ -153,90 +116,549 @@
         }
       }
     },
-    "/admin/stats": {
+    "/auth/userinfo": {
       "get": {
-        "summary": "获取系统统计信息",
+        "summary": "查询用户信息",
         "tags": [
-          "管理员"
+          "01-认证 Auth"
         ],
         "parameters": [
           {
-            "name": "X-User-Id",
-            "in": "header",
+            "name": "userId",
+            "in": "query",
             "required": true,
             "schema": {
-              "type": "integer",
-              "example": 1
+              "type": "integer"
             },
-            "description": "操作员用户ID（需要ADMIN或SUPER_ADMIN角色）"
+            "example": 7,
+            "description": "用户ID"
           }
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "返回UserInfoVO",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "code": {
-                      "type": "integer",
-                      "example": 200
-                    },
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "totalUsers": {
-                          "type": "integer",
-                          "example": 50
-                        },
-                        "adminCount": {
-                          "type": "integer",
-                          "example": 3
-                        },
-                        "superAdminCount": {
-                          "type": "integer",
-                          "example": 1
-                        }
-                      }
-                    }
-                  }
+                  "$ref": "#/components/schemas/Result_UserInfo"
+                },
+                "example": {
+                  "code": 200,
+                  "message": "操作成功",
+                  "data": {
+                    "id": 7,
+                    "username": "zhangsan",
+                    "email": "zhangsan@ai.com",
+                    "balance": 50,
+                    "status": 1,
+                    "role": "ADMIN",
+                    "freeApiStrategy": null,
+                    "createTime": "2026-05-12T17:30:00",
+                    "updateTime": "2026-05-12T17:30:00"
+                  },
+                  "timestamp": 1778578200000
+                }
+              }
+            }
+          }
+      }
+    },
+      "/auth/balance": {
+      "get": {
+        "summary": "查询用户余额",
+        "tags": [
+          "01-认证 Auth"
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 7,
+            "description": "用户ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "data=BigDecimal数字",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Result_BigDecimal"
+                },
+                "example": {
+                  "code": 200,
+                  "message": "操作成功",
+                  "data": 50,
+                  "timestamp": 1778578200000
                 }
               }
             }
           }
         }
       }
+      },
+      "/user/recharge": {
+        "post": {
+          "summary": "用户充值",
+          "tags": [
+            "02-用户 User"
+          ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 8,
+            "description": "用户ID"
+          },
+          {
+            "name": "amount",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number"
+            },
+            "example": 10,
+            "description": "充值金额(美元),必须>0"
+          }
+        ],
+          "responses": {
+            "200": {
+              "description": "充值成功",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Result"
+                  },
+                  "example": {
+                    "code": 200,
+                    "message": "充值成功",
+                    "data": null,
+                    "timestamp": 1778578200000
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/user/info": {
+        "get": {
+          "summary": "查询用户信息",
+          "tags": [
+            "02-用户 User"
+          ],
+          "parameters": [
+            {
+              "name": "userId",
+              "in": "query",
+              "required": true,
+              "schema": {
+                "type": "integer"
+              },
+              "example": 8,
+              "description": "用户ID"
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "返回UserInfoVO",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Result_UserInfo"
+                  },
+                  "example": {
+                    "code": 200,
+                    "message": "操作成功",
+                    "data": {
+                      "id": 8,
+                      "username": "lisi",
+                      "email": "lisi@ai.com",
+                      "balance": 100,
+                      "status": 1,
+                      "role": "USER",
+                      "freeApiStrategy": null,
+                      "createTime": "2026-05-12T17:30:00",
+                      "updateTime": "2026-05-12T17:30:00"
+                    },
+                    "timestamp": 1778578200000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "/user/balance": {
+          "get": {
+            "summary": "查询余额",
+            "tags": [
+              "02-用户 User"
+            ],
+            "parameters": [
+              {
+                "name": "userId",
+                "in": "query",
+                "required": true,
+                "schema": {
+                  "type": "integer"
+                },
+                "example": 8,
+                "description": "用户ID"
+              }
+            ],
+            "responses": {
+              "200": {
+                "description": "data=BigDecimal",
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/Result_BigDecimal"
+                    },
+                    "example": {
+                      "code": 200,
+                      "message": "操作成功",
+                      "data": 100,
+                      "timestamp": 1778578200000
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "/api-key/generate": {
+          "post": {
+            "summary": "生成API Key",
+            "tags": [
+              "03-API Key"
+            ],
+            "parameters": [
+              {
+                "name": "userId",
+                "in": "query",
+                "required": true,
+                "schema": {
+                  "type": "integer"
+                },
+                "example": 7,
+                "description": "用户ID"
+              }
+            ],
+            "requestBody": {
+              "required": false,
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "example": "MyKey",
+                        "description": "Key名称/备注"
+                      },
+                      "rateLimit": {
+                        "type": "integer",
+                        "example": 200,
+                        "description": "每分钟限流次数(默认100)"
+                      }
+                    }
+                  },
+                  "example": {
+                    "name": "MyKey",
+                    "rateLimit": 200
+                  }
+                }
+              }
+            },
+            "responses": {
+              "200": {
+                "description": "返回ApiKeyInfoVO",
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/Result_ApiKey"
+                    },
+                    "example": {
+                      "code": 200,
+                      "message": "API Key生成成功",
+                      "data": {
+                        "id": 1,
+                        "apiKey": "sk-3457a754a5534a668f87fb33c367e6f0",
+                        "name": "MyKey",
+                        "status": 1,
+                        "rateLimit": 200,
+                        "createTime": "2026-05-12T17:30:00",
+                        "expireTime": null
+                      },
+                      "timestamp": 1778578200000
+                    }
+                  }
+                }
+              }
+      }
     },
-    "/admin/users": {
+          "/api-key/list": {
       "get": {
-        "summary": "获取所有用户列表",
+        "summary": "查询API Key列表",
         "tags": [
-          "管理员"
+          "03-API Key"
         ],
         "parameters": [
           {
-            "name": "X-User-Id",
-            "in": "header",
+            "name": "userId",
+            "in": "query",
             "required": true,
             "schema": {
-              "type": "integer",
-              "example": 1
-            }
+              "type": "integer"
+            },
+            "example": 6,
+            "description": "用户ID"
           }
         ],
         "responses": {
           "200": {
-            "description": "成功"
+            "description": "返回ApiKeyInfoVO数组(按创建时间倒序)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Result_ApiKeyList"
+                },
+                "example": {
+                  "code": 200,
+                  "message": "操作成功",
+                  "data": [
+                    {
+                      "id": 1,
+                      "apiKey": "sk-2adbdb4f5ae04cacb9ea0466ac4b23f0",
+                      "name": "生产环境Key",
+                      "status": 1,
+                      "rateLimit": 500,
+                      "createTime": "2026-05-12T17:30:00",
+                      "expireTime": null
+                    }
+                  ],
+                  "timestamp": 1778578200000
+                }
+              }
+            }
           }
         }
+      },
+            "/api-key/{id}": {
+              "parameters": [
+                {
+                  "name": "id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "integer"
+                  },
+                  "example": 2,
+                  "description": "API Key ID"
+                },
+                {
+                  "name": "userId",
+                  "in": "query",
+                  "required": true,
+                  "schema": {
+                    "type": "integer"
+                  },
+                  "example": 7,
+                  "description": "用户ID(权限校验,只能操作自己的Key)"
+                }
+              ],
+              "delete": {
+                "summary": "删除API Key",
+                "tags": [
+                  "03-API Key"
+                ],
+                "responses": {
+                  "200": {
+                    "description": "删除成功",
+                    "content": {
+                      "application/json": {
+                        "schema": {
+                          "$ref": "#/components/schemas/Result"
+                        },
+                        "example": {
+                          "code": 200,
+                          "message": "删除成功",
+                          "data": null,
+                          "timestamp": 1778578200000
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "/api-key/{id}/enable": {
+              "parameters": [
+                {
+                  "name": "id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "integer"
+                  },
+                  "example": 6,
+                  "description": "API Key ID(当前禁用的是id=6开发团队Key)"
+                },
+                {
+                  "name": "userId",
+                  "in": "query",
+                  "required": true,
+                  "schema": {
+                    "type": "integer"
+                  },
+                  "example": 12,
+                  "description": "用户ID(权限校验)"
+                }
+              ],
+              "put": {
+                "summary": "启用API Key",
+                "tags": [
+                  "03-API Key"
+                ],
+                "responses": {
+                  "200": {
+                    "description": "启用成功",
+                    "content": {
+                      "application/json": {
+                        "schema": {
+                          "$ref": "#/components/schemas/Result"
+                        },
+                        "example": {
+                          "code": 200,
+                          "message": "启用成功",
+                          "data": null,
+                          "timestamp": 1778578200000
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "/api-key/{id}/disable": {
+              "parameters": [
+                {
+                  "name": "id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "integer"
+                  },
+                  "example": 1,
+                  "description": "API Key ID"
+                },
+                {
+                  "name": "userId",
+                  "in": "query",
+                  "required": true,
+                  "schema": {
+                    "type": "integer"
+                  },
+                  "example": 6,
+                  "description": "用户ID(权限校验)"
+                }
+              ],
+              "put": {
+                "summary": "禁用API Key",
+                "tags": [
+                  "03-API Key"
+                ],
+                "responses": {
+                  "200": {
+                    "description": "禁用成功",
+                    "content": {
+                      "application/json": {
+                        "schema": {
+                          "$ref": "#/components/schemas/Result"
+                        },
+                        "example": {
+                          "code": 200,
+                          "message": "禁用成功",
+                          "data": null,
+                          "timestamp": 1778578200000
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "/api-key/{id}/rate-limit": {
+              "parameters": [
+                {
+                  "name": "id",
+                  "in": "path",
+                  "required": true,
+                  "schema": {
+                    "type": "integer"
+                  },
+                  "example": 1,
+                  "description": "API Key ID"
+                },
+                {
+                  "name": "userId",
+                  "in": "query",
+                  "required": true,
+                  "schema": {
+                    "type": "integer"
+                  },
+                  "example": 6,
+                  "description": "用户ID(权限校验)"
+                },
+                {
+                  "name": "rateLimit",
+                  "in": "query",
+                  "required": true,
+                  "schema": {
+                    "type": "integer"
+                  },
+                  "example": 500,
+                  "description": "新限流阈值(次/分钟)"
+                }
+              ],
+              "put": {
+                "summary": "更新API Key限流阈值",
+                "tags": [
+                  "03-API Key"
+                ],
+                "responses": {
+                  "200": {
+                    "description": "更新成功",
+                    "content": {
+                      "application/json": {
+                        "schema": {
+                          "$ref": "#/components/schemas/Result"
+                        },
+                        "example": {
+                          "code": 200,
+                          "message": "更新成功",
+                          "data": null,
+                          "timestamp": 1778578200000
+                        }
+                      }
+                    }
+                  }
+                }
       }
     },
     "/admin/admins": {
       "get": {
-        "summary": "获取所有管理员列表",
+        "summary": "获取管理员列表(仅SUPER_ADMIN)",
         "tags": [
-          "管理员"
+          "04-管理员 Admin"
         ],
         "parameters": [
           {
@@ -244,24 +666,216 @@
             "in": "header",
             "required": true,
             "schema": {
-              "type": "integer",
-              "example": 1
+              "type": "integer"
             },
-            "description": "需要SUPER_ADMIN角色"
+            "example": 6,
+            "description": "操作者ID(须SUPER_ADMIN)"
           }
         ],
         "responses": {
           "200": {
-            "description": "成功"
+            "description": "返回AdminInfoVO数组",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Result_AdminList"
+                },
+                "example": {
+                  "code": 200,
+                  "message": "操作成功",
+                  "data": [
+                    {
+                      "id": 4,
+                      "username": "superadmin",
+                      "email": "superadmin@aiplatform.com",
+                      "balance": 0,
+                      "status": 1,
+                      "role": "SUPER_ADMIN",
+                      "freeApiStrategy": null,
+                      "freeQuota": 0,
+                      "dailyCallLimit": null,
+                      "monthlyCallLimit": null,
+                      "freeStrategyStartTime": null,
+                      "freeStrategyEndTime": null,
+                      "allowedFreeModels": null,
+                      "createTime": "2026-05-12T17:00:00",
+                      "updateTime": "2026-05-12T17:00:00"
+                    }
+                  ],
+                  "timestamp": 1778578200000
+                }
+              }
+            }
           }
         }
+      },
+      "/admin/users": {
+        "get": {
+          "summary": "获取所有用户列表(ADMIN+)",
+          "tags": [
+            "04-管理员 Admin"
+          ],
+          "parameters": [
+            {
+              "name": "X-User-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "integer"
+              },
+              "example": 7,
+              "description": "操作者ID(须ADMIN或SUPER_ADMIN)"
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "返回AdminInfoVO数组",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Result_AdminList"
+                  },
+                  "example": {
+                    "code": 200,
+                    "message": "操作成功",
+                    "data": [],
+                    "timestamp": 1778578200000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "/admin/user/{userId}": {
+          "get": {
+            "summary": "获取用户详情(ADMIN+)",
+            "tags": [
+              "04-管理员 Admin"
+            ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 9,
+            "description": "目标用户ID"
+          },
+          {
+            "name": "X-User-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 7,
+            "description": "操作者ID(须ADMIN或SUPER_ADMIN)"
+          }
+        ],
+            "responses": {
+              "200": {
+                "description": "返回AdminInfoVO",
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/Result_Admin"
+                    },
+                    "example": {
+                      "code": 200,
+                      "message": "操作成功",
+                      "data": {
+                        "id": 9,
+                        "username": "wangwu",
+                        "email": "wangwu@ai.com",
+                        "balance": 20,
+                        "status": 1,
+                        "role": "USER",
+                        "freeApiStrategy": "UNLIMITED",
+                        "freeQuota": 0,
+                        "dailyCallLimit": null,
+                        "monthlyCallLimit": null,
+                        "freeStrategyStartTime": null,
+                        "freeStrategyEndTime": null,
+                        "allowedFreeModels": null,
+                        "createTime": "2026-05-12T17:30:00",
+                        "updateTime": "2026-05-12T17:30:00"
+                      },
+                      "timestamp": 1778578200000
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/admin/user/status": {
+            "post": {
+              "summary": "禁用/启用用户(ADMIN+),sunqi(id=11)当前禁用",
+              "tags": [
+                "04-管理员 Admin"
+              ],
+              "parameters": [
+                {
+                  "name": "userId",
+                  "in": "query",
+                  "required": true,
+                  "schema": {
+                    "type": "integer"
+                  },
+                  "example": 11,
+                  "description": "目标用户ID"
+                },
+                {
+                  "name": "status",
+                  "in": "query",
+                  "required": true,
+                  "schema": {
+                    "type": "integer",
+                    "enum": [
+                      0,
+                      1
+                    ]
+                  },
+                  "example": 1,
+                  "description": "0=禁用,1=启用"
+                },
+                {
+                  "name": "X-User-Id",
+                  "in": "header",
+                  "required": true,
+                  "schema": {
+                    "type": "integer"
+                  },
+                  "example": 6,
+                  "description": "操作者ID(须ADMIN或SUPER_ADMIN)"
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "用户已启用/禁用",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/Result"
+                      },
+                      "example": {
+                        "code": 200,
+                        "message": "用户已启用",
+                        "data": null,
+                        "timestamp": 1778578200000
+                      }
+                    }
+                  }
+                }
+              }
       }
     },
     "/admin/assign-role": {
       "post": {
-        "summary": "分配管理员角色",
+        "summary": "分配管理员角色(仅SUPER_ADMIN),将lisi提升为ADMIN",
         "tags": [
-          "管理员"
+          "04-管理员 Admin"
         ],
         "parameters": [
           {
@@ -269,10 +883,10 @@
             "in": "header",
             "required": true,
             "schema": {
-              "type": "integer",
-              "example": 1
+              "type": "integer"
             },
-            "description": "需要SUPER_ADMIN角色"
+            "example": 6,
+            "description": "操作者ID(须SUPER_ADMIN)"
           }
         ],
         "requestBody": {
@@ -288,7 +902,8 @@
                 "properties": {
                   "userId": {
                     "type": "integer",
-                    "example": 3
+                    "example": 8,
+                    "description": "目标用户ID"
                   },
                   "role": {
                     "type": "string",
@@ -296,25 +911,91 @@
                       "ADMIN",
                       "SUPER_ADMIN"
                     ],
-                    "example": "ADMIN"
+                    "example": "ADMIN",
+                    "description": "角色"
                   }
                 }
+              },
+              "example": {
+                "userId": 8,
+                "role": "ADMIN"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "成功"
+            "description": "角色分配成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Result"
+                },
+                "example": {
+                  "code": 200,
+                  "message": "角色分配成功",
+                  "data": null,
+                  "timestamp": 1778578200000
+                }
+              }
+            }
           }
         }
       }
     },
+          "/admin/revoke-role": {
+            "post": {
+              "summary": "取消管理员角色(仅SUPER_ADMIN)",
+              "tags": [
+                "04-管理员 Admin"
+              ],
+              "parameters": [
+                {
+                  "name": "userId",
+                  "in": "query",
+                  "required": true,
+                  "schema": {
+                    "type": "integer"
+                  },
+                  "example": 8,
+                  "description": "目标用户ID(不能取消自己)"
+                },
+                {
+                  "name": "X-User-Id",
+                  "in": "header",
+                  "required": true,
+                  "schema": {
+                    "type": "integer"
+                  },
+                  "example": 6,
+                  "description": "操作者ID(须SUPER_ADMIN)"
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "角色取消成功",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/Result"
+                      },
+                      "example": {
+                        "code": 200,
+                        "message": "角色取消成功",
+                        "data": null,
+                        "timestamp": 1778578200000
+                      }
+                    }
+                  }
+                }
+              }
+      }
+    },
     "/admin/set-free-strategy": {
       "post": {
-        "summary": "设置API免费策略",
+        "summary": "设置API免费策略(仅SUPER_ADMIN)",
         "tags": [
-          "管理员"
+          "04-管理员 Admin"
         ],
         "parameters": [
           {
@@ -322,10 +1003,10 @@
             "in": "header",
             "required": true,
             "schema": {
-              "type": "integer",
-              "example": 1
+              "type": "integer"
             },
-            "description": "需要SUPER_ADMIN角色"
+            "example": 6,
+            "description": "操作者ID(须SUPER_ADMIN)"
           }
         ],
         "requestBody": {
@@ -333,6 +1014,508 @@
           "content": {
             "application/json": {
               "schema": {
+                "$ref": "#/components/schemas/SetFreeStrategyRequest"
+              },
+              "example": {
+                "userId": 9,
+                "freeApiStrategy": "UNLIMITED"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "免费策略设置成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Result"
+                },
+                "example": {
+                  "code": 200,
+                  "message": "免费策略设置成功",
+                  "data": null,
+                  "timestamp": 1778578200000
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+          "/admin/stats": {
+            "get": {
+              "summary": "系统统计⭐12项实时指标(ADMIN+)",
+              "tags": [
+                "04-管理员 Admin"
+              ],
+              "parameters": [
+                {
+                  "name": "X-User-Id",
+                  "in": "header",
+                  "required": true,
+                  "schema": {
+                    "type": "integer"
+                  },
+                  "example": 6,
+                  "description": "操作者ID(须ADMIN或SUPER_ADMIN)"
+                }
+              ],
+              "responses": {
+                "200": {
+                  "description": "返回SystemStatsVO",
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/Result_Stats"
+                      },
+                      "example": {
+                        "code": 200,
+                        "message": "操作成功",
+                        "data": {
+                          "totalUsers": 8,
+                          "activeUsers": 3,
+                          "adminCount": 3,
+                          "superAdminCount": 2,
+                          "disabledUsers": 1,
+                          "totalApiCalls": 12,
+                          "todayApiCalls": 9,
+                          "totalRevenue": 0.000205,
+                          "todayRevenue": 0.000181,
+                          "avgCallCost": 0.000017,
+                          "freeStrategyUsers": 3,
+                          "modelCount": 4,
+                          "activeModelCount": 4
+                        },
+                        "timestamp": 1778578200000
+                      }
+                    }
+                  }
+                }
+      }
+    },
+    "/chat/completions": {
+      "post": {
+        "summary": "非流式对话⭐data=AI回复纯文本",
+        "tags": [
+          "05-聊天 Chat"
+        ],
+        "parameters": [
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "sk-2adbdb4f5ae04cacb9ea0466ac4b23f0",
+            "description": "API Key, 从/api-key/generate获取"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              },
+              "example": {
+                "model": "deepseek-v4-pro",
+                "messages": [
+                  {
+                    "role": "user",
+                    "content": "用一句话介绍Java"
+                  }
+                ],
+                "maxTokens": 200,
+                "temperature": 0.7
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "data=AI回复纯文本",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Result_String"
+                },
+                "example": {
+                  "code": 200,
+                  "message": "操作成功",
+                  "data": "Java是一种具有跨平台特性的面向对象编程语言...",
+                  "timestamp": 1778578200000
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+            "/chat/stream": {
+              "post": {
+                "summary": "流式对话SSE⭐Content-Type=text/event-stream, event:message→{content}, event:done→{finished,inputTokens,outputTokens,cost}, event:error→errStr",
+                "tags": [
+                  "05-聊天 Chat"
+                ],
+                "parameters": [
+                  {
+                    "name": "X-API-Key",
+                    "in": "header",
+                    "required": true,
+                    "schema": {
+                      "type": "string"
+                    },
+                    "example": "sk-2adbdb4f5ae04cacb9ea0466ac4b23f0",
+                    "description": "API Key"
+                  }
+                ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              },
+              "example": {
+                "model": "deepseek-v4-pro",
+                "messages": [
+                  {
+                    "role": "user",
+                    "content": "你好"
+                  }
+                ]
+              }
+            }
+          }
+        },
+                "responses": {
+                  "200": {
+                    "description": "SSE流式响应(非JSON), event:message→逐字, event:done→{finished:true,inputTokens:15,outputTokens:38,cost:0.000008}, event:error→错误字符串"
+                  }
+                }
+              }
+            }
+          },
+          "components": {
+            "schemas": {
+              "Result": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "integer",
+                    "example": 200,
+                    "description": "200=成功,其他=失败"
+                  },
+                  "message": {
+                    "type": "string",
+                    "example": "操作成功"
+                  },
+                  "data": {
+                    "nullable": true
+                  },
+                  "timestamp": {
+                    "type": "integer",
+                    "format": "int64",
+                    "example": 1778578200000
+                  }
+                }
+              },
+              "Result_UserInfo": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "integer",
+                    "example": 200
+                  },
+                  "message": {
+                    "type": "string",
+                    "example": "操作成功"
+                  },
+                  "data": {
+                    "$ref": "#/components/schemas/UserInfoVO"
+                  },
+                  "timestamp": {
+                    "type": "integer",
+                    "example": 1778578200000
+                  }
+                }
+              },
+              "Result_Login": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "integer",
+                    "example": 200
+                  },
+                  "message": {
+                    "type": "string",
+                    "example": "登录成功"
+                  },
+                  "data": {
+                    "type": "object",
+                    "properties": {
+                      "token": {
+                        "type": "string",
+                        "example": "token_7"
+                      },
+                      "userInfo": {
+                        "$ref": "#/components/schemas/UserInfoVO"
+                      }
+                    }
+                  },
+                  "timestamp": {
+                    "type": "integer",
+                    "example": 1778578200000
+                  }
+                }
+              },
+              "Result_BigDecimal": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "integer",
+                    "example": 200
+                  },
+                  "message": {
+                    "type": "string",
+                    "example": "操作成功"
+                  },
+                  "data": {
+                    "type": "number",
+                    "example": 50
+                  },
+                  "timestamp": {
+                    "type": "integer",
+                    "example": 1778578200000
+                  }
+                }
+              },
+              "Result_String": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "integer",
+                    "example": 200
+                  },
+                  "message": {
+                    "type": "string",
+                    "example": "操作成功"
+                  },
+                  "data": {
+                    "type": "string",
+                    "example": "Java是一种..."
+                  },
+                  "timestamp": {
+                    "type": "integer",
+                    "example": 1778578200000
+                  }
+                }
+              },
+              "Result_ApiKey": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "integer",
+                    "example": 200
+                  },
+                  "message": {
+                    "type": "string",
+                    "example": "API Key生成成功"
+                  },
+                  "data": {
+                    "$ref": "#/components/schemas/ApiKeyInfoVO"
+                  },
+                  "timestamp": {
+                    "type": "integer",
+                    "example": 1778578200000
+                  }
+                }
+              },
+              "Result_ApiKeyList": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "integer",
+                    "example": 200
+                  },
+                  "message": {
+                    "type": "string",
+                    "example": "操作成功"
+                  },
+                  "data": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/ApiKeyInfoVO"
+                    }
+                  },
+                  "timestamp": {
+                    "type": "integer",
+                    "example": 1778578200000
+                  }
+                }
+              },
+              "Result_Admin": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "integer",
+                    "example": 200
+                  },
+                  "message": {
+                    "type": "string",
+                    "example": "操作成功"
+                  },
+                  "data": {
+                    "$ref": "#/components/schemas/AdminInfoVO"
+                  },
+                  "timestamp": {
+                    "type": "integer",
+                    "example": 1778578200000
+                  }
+                }
+              },
+              "Result_AdminList": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "integer",
+                    "example": 200
+                  },
+                  "message": {
+                    "type": "string",
+                    "example": "操作成功"
+                  },
+                  "data": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/AdminInfoVO"
+                    }
+                  },
+                  "timestamp": {
+                    "type": "integer",
+                    "example": 1778578200000
+                  }
+                }
+              },
+              "Result_Stats": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "integer",
+                    "example": 200
+                  },
+                  "message": {
+                    "type": "string",
+                    "example": "操作成功"
+                  },
+                  "data": {
+                    "$ref": "#/components/schemas/SystemStatsVO"
+                  },
+                  "timestamp": {
+                    "type": "integer",
+                    "example": 1778578200000
+                  }
+                }
+              },
+              "RegisterRequest": {
+                "type": "object",
+                "required": [
+                  "username",
+                  "password"
+                ],
+                "properties": {
+                  "username": {
+                    "type": "string",
+                    "example": "newuser",
+                    "description": "用户名"
+                  },
+                  "password": {
+                    "type": "string",
+                    "example": "admin123",
+                    "description": "密码(明文,后端BCrypt加密)"
+                  },
+                  "email": {
+                    "type": "string",
+                    "example": "new@test.com",
+                    "description": "邮箱(选填)"
+                  }
+                }
+              },
+              "LoginRequest": {
+                "type": "object",
+                "required": [
+                  "username",
+                  "password"
+                ],
+                "properties": {
+                  "username": {
+                    "type": "string",
+                    "example": "zhangsan"
+                  },
+                  "password": {
+                    "type": "string",
+                    "example": "admin123"
+                  }
+                }
+              },
+              "ChatRequest": {
+                "type": "object",
+                "required": [
+                  "model",
+                  "messages"
+                ],
+                "properties": {
+                  "model": {
+                    "type": "string",
+                    "enum": [
+                      "deepseek-v4-pro",
+                      "deepseek-v4-flash",
+                      "deepseek-chat"
+                    ],
+                    "example": "deepseek-v4-pro",
+                    "description": "模型名称"
+                  },
+                  "messages": {
+                    "type": "array",
+                    "description": "对话消息数组",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "role",
+                        "content"
+                      ],
+                      "properties": {
+                        "role": {
+                          "type": "string",
+                          "enum": [
+                            "system",
+                            "user",
+                            "assistant"
+                          ],
+                          "example": "user"
+                        },
+                        "content": {
+                          "type": "string",
+                          "example": "用一句话介绍Java"
+                        }
+                      }
+                    }
+                  },
+                  "maxTokens": {
+                    "type": "integer",
+                    "example": 200,
+                    "description": "最大Token数(选填,1-4096)"
+                  },
+                  "temperature": {
+                    "type": "number",
+                    "example": 0.7,
+                    "description": "温度(选填,0.0-2.0)"
+                  }
+                }
+              },
+              "SetFreeStrategyRequest": {
                 "type": "object",
                 "required": [
                   "userId",
@@ -341,7 +1524,8 @@
                 "properties": {
                   "userId": {
                     "type": "integer",
-                    "example": 3
+                    "example": 9,
+                    "description": "目标用户ID"
                   },
                   "freeApiStrategy": {
                     "type": "string",
@@ -352,152 +1536,422 @@
                       "TIME_LIMITED",
                       "MODEL_SPECIFIC"
                     ],
+                    "example": "UNLIMITED",
+                    "description": "UNLIMITED=完全免费|QUOTA_BASED=额度免费|COUNT_LIMITED=限次|TIME_LIMITED=限时|MODEL_SPECIFIC=模型限定"
+                  },
+                  "freeQuota": {
+                    "type": "number",
+                    "example": 100,
+                    "description": "免费额度美元(QUOTA_BASED时有效)"
+                  },
+                  "dailyCallLimit": {
+                    "type": "integer",
+                    "example": 50,
+                    "description": "每日调用限制(COUNT_LIMITED时有效)"
+                  },
+                  "monthlyCallLimit": {
+                    "type": "integer",
+                    "example": 1000,
+                    "description": "每月调用限制(COUNT_LIMITED时有效)"
+                  },
+                  "freeStrategyStartTime": {
+                    "type": "string",
+                    "example": "2026-06-01T00:00:00",
+                    "description": "开始时间(TIME_LIMITED时有效,选填)"
+                  },
+                  "freeStrategyEndTime": {
+                    "type": "string",
+                    "example": "2026-07-01T23:59:59",
+                    "description": "结束时间(TIME_LIMITED时有效,选填)"
+                  },
+                  "allowedFreeModels": {
+                    "type": "string",
+                    "example": "[deepseek-v4-pro,deepseek-v4-flash]",
+                    "description": "JSON数组字符串(MODEL_SPECIFIC时有效,选填)"
+                  }
+                }
+              },
+              "UserInfoVO": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "integer",
+                    "example": 7,
+                    "description": "用户ID"
+                  },
+                  "username": {
+                    "type": "string",
+                    "example": "zhangsan"
+                  },
+                  "email": {
+                    "type": "string",
+                    "example": "zhangsan@ai.com"
+                  },
+                  "balance": {
+                    "type": "number",
+                    "example": 50,
+                    "description": "余额(美元)"
+                  },
+                  "status": {
+                    "type": "integer",
+                    "example": 1,
+                    "description": "1=启用 0=禁用"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "USER",
+                      "ADMIN",
+                      "SUPER_ADMIN"
+                    ],
+                    "example": "ADMIN",
+                    "description": "用户角色"
+                  },
+                  "freeApiStrategy": {
+                    "type": "string",
+                    "nullable": true,
+                    "example": null,
+                    "description": "免费策略类型,null=无"
+                  },
+                  "createTime": {
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2026-05-12T17:30:00"
+                  },
+                  "updateTime": {
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2026-05-12T17:30:00"
+                  }
+                }
+              },
+              "ApiKeyInfoVO": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "integer",
+                    "example": 1,
+                    "description": "Key记录ID"
+                  },
+                  "apiKey": {
+                    "type": "string",
+                    "example": "sk-3457a754a5534a668f87fb33c367e6f0",
+                    "description": "Key值,格式sk-{uuid}"
+                  },
+                  "name": {
+                    "type": "string",
+                    "nullable": true,
+                    "example": "MyKey",
+                    "description": "Key名称/备注"
+                  },
+                  "status": {
+                    "type": "integer",
+                    "example": 1,
+                    "description": "1=启用 0=禁用"
+                  },
+                  "rateLimit": {
+                    "type": "integer",
+                    "example": 200,
+                    "description": "每分钟限流次数"
+                  },
+                  "createTime": {
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2026-05-12T17:30:00"
+                  },
+                  "expireTime": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": true,
+                    "example": null,
+                    "description": "过期时间,null=永久有效"
+                  }
+                }
+              },
+              "AdminInfoVO": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "integer",
+                    "example": 9
+                  },
+                  "username": {
+                    "type": "string",
+                    "example": "wangwu"
+                  },
+                  "email": {
+                    "type": "string",
+                    "example": "wangwu@ai.com"
+                  },
+                  "balance": {
+                    "type": "number",
+                    "example": 20,
+                    "description": "余额(美元)"
+                  },
+                  "status": {
+                    "type": "integer",
+                    "example": 1,
+                    "description": "1=启用 0=禁用"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "USER",
+                      "ADMIN",
+                      "SUPER_ADMIN"
+                    ],
+                    "example": "USER"
+                  },
+                  "freeApiStrategy": {
+                    "type": "string",
+                    "nullable": true,
                     "example": "UNLIMITED"
                   },
                   "freeQuota": {
                     "type": "number",
-                    "example": 10.0
+                    "example": 0,
+                    "description": "免费额度(美元)"
                   },
                   "dailyCallLimit": {
                     "type": "integer",
-                    "example": 100
+                    "nullable": true,
+                    "example": null,
+                    "description": "每日调用限制"
                   },
                   "monthlyCallLimit": {
                     "type": "integer",
-                    "example": 3000
+                    "nullable": true,
+                    "example": null,
+                    "description": "每月调用限制"
+                  },
+                  "freeStrategyStartTime": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": true,
+                    "example": null
+                  },
+                  "freeStrategyEndTime": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": true,
+                    "example": null
+                  },
+                  "allowedFreeModels": {
+                    "type": "string",
+                    "nullable": true,
+                    "example": null,
+                    "description": "JSON数组字符串"
+                  },
+                  "createTime": {
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2026-05-12T17:30:00"
+                  },
+                  "updateTime": {
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2026-05-12T17:30:00"
                   }
                 }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "成功"
-          }
-        }
-      }
-    },
-    "/chat/completions": {
-      "post": {
-        "summary": "非流式对话",
-        "tags": [
-          "对话"
-        ],
-        "parameters": [
-          {
-            "name": "X-API-Key",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "example": "sk-xxx"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
+              },
+              "SystemStatsVO": {
+                "type": "object",
+                "properties": {
+                  "totalUsers": {
+                    "type": "integer",
+                    "example": 8,
+                    "description": "总用户数"
+                  },
+                  "activeUsers": {
+                    "type": "integer",
+                    "example": 3,
+                    "description": "活跃用户数(近7天)"
+                  },
+                  "adminCount": {
+                    "type": "integer",
+                    "example": 3,
+                    "description": "管理员数"
+                  },
+                  "superAdminCount": {
+                    "type": "integer",
+                    "example": 2,
+                    "description": "超级管理员数"
+                  },
+                  "disabledUsers": {
+                    "type": "integer",
+                    "example": 1,
+                    "description": "已禁用用户数"
+                  },
+                  "totalApiCalls": {
+                    "type": "integer",
+                    "example": 12,
+                    "description": "总API调用次数"
+                  },
+                  "todayApiCalls": {
+                    "type": "integer",
+                    "example": 9,
+                    "description": "今日API调用次数"
+                  },
+                  "totalRevenue": {
+                    "type": "number",
+                    "example": 0.000205,
+                    "description": "总消费金额(美元)"
+                  },
+                  "todayRevenue": {
+                    "type": "number",
+                    "example": 0.000181,
+                    "description": "今日消费金额(美元)"
+                  },
+                  "avgCallCost": {
+                    "type": "number",
+                    "example": 0.000017,
+                    "description": "平均单次调用费用(美元)"
+                  },
+                  "freeStrategyUsers": {
+                    "type": "integer",
+                    "example": 3,
+                    "description": "使用免费策略的用户数"
+                  },
+                  "modelCount": {
+                    "type": "integer",
+                    "example": 4,
+                    "description": "模型总数"
+                  },
+                  "activeModelCount": {
+                    "type": "integer",
+                    "example": 4,
+                    "description": "启用的模型数"
+                  }
+                }
+              },
+              "RegisterRequest": {
                 "type": "object",
                 "required": [
-                  "model",
-                  "messages"
+                  "username",
+                  "password"
                 ],
                 "properties": {
-                  "model": {
+                  "username": {
                     "type": "string",
-                    "example": "gpt-3.5-turbo"
+                    "example": "newuser",
+                    "description": "用户名"
                   },
-                  "messages": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "role": {
-                          "type": "string",
-                          "enum": [
-                            "system",
-                            "user",
-                            "assistant"
-                          ]
-                        },
-                        "content": {
-                          "type": "string"
-                        }
-                      }
-                    },
-                    "example": [
-                      {
-                        "role": "user",
-                        "content": "你好"
-                      }
-                    ]
+                  "password": {
+                    "type": "string",
+                    "example": "admin123",
+                    "description": "密码,后端BCrypt加密"
+                  },
+                  "email": {
+                    "type": "string",
+                    "example": "new@test.com",
+                    "description": "邮箱(选填)"
                   }
                 }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "成功"
-          }
-        }
-      }
-    },
-    "/chat/stream": {
-      "post": {
-        "summary": "流式对话（SSE）",
-        "tags": [
-          "对话"
-        ],
-        "parameters": [
-          {
-            "name": "X-API-Key",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
+              },
+              "LoginRequest": {
+                "type": "object",
+                "required": [
+                  "username",
+                  "password"
+                ],
+                "properties": {
+                  "username": {
+                    "type": "string",
+                    "example": "zhangsan"
+                  },
+                  "password": {
+                    "type": "string",
+                    "example": "admin123"
+                  }
+                }
+              },
+              "Result": {
                 "type": "object",
                 "properties": {
-                  "model": {
-                    "type": "string"
+                  "code": {
+                    "type": "integer",
+                    "example": 200,
+                    "description": "业务状态码,200=成功"
                   },
-                  "messages": {
-                    "type": "array"
+                  "message": {
+                    "type": "string",
+                    "example": "操作成功",
+                    "description": "提示信息"
                   },
-                  "stream": {
-                    "type": "boolean",
-                    "example": true
+                  "data": {
+                    "description": "实际数据,类型视接口而定,null表示无数据"
+                  },
+                  "timestamp": {
+                    "type": "integer",
+                    "example": 1778578200000,
+                    "description": "Unix毫秒时间戳"
                   }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "SSE流式响应",
-            "content": {
-              "text/event-stream": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          }
         }
       }
     }
+          },
+          "x-apifox-meta": {
+            "testAccounts": [
+              {
+                "username": "superadmin",
+                "password": "admin123",
+                "role": "SUPER_ADMIN",
+                "userId": 4
+              },
+              {
+                "username": "zhangsan",
+                "password": "admin123",
+                "role": "ADMIN",
+                "userId": 7
+              },
+              {
+                "username": "lisi",
+                "password": "admin123",
+                "role": "USER",
+                "userId": 8
+              },
+              {
+                "username": "wangwu",
+                "password": "admin123",
+                "role": "USER(UNLIMITED免费)",
+                "userId": 9
+              },
+              {
+                "username": "zhaoliu",
+                "password": "admin123",
+                "role": "USER(COUNT_LIMITED)",
+                "userId": 10
+              },
+              {
+                "username": "sunqi",
+                "password": "admin123",
+                "role": "USER(已禁用)",
+                "userId": 11
+              },
+              {
+                "username": "devteam",
+                "password": "admin123",
+                "role": "ADMIN(QUOTA_BASED)",
+                "userId": 12
+              }
+            ],
+            "apiKeys": [
+              {
+                "key": "sk-2adbdb4f5ae04cacb9ea0466ac4b23f0",
+                "owner": "testuser_apitest(id=6)",
+                "rateLimit": 500
+              },
+              {
+                "key": "sk-a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6",
+                "owner": "zhangsan(id=7)",
+                "rateLimit": 200
+              },
+              {
+                "key": "sk-b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7",
+                "owner": "lisi(id=8)",
+                "rateLimit": 100
+              }
+            ],
+            "successRule": "HTTP Status始终=200，通过 response.code === 200 判断成功，code !== 200 显示 message 给用户"
   }
 }
