@@ -23,28 +23,96 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * OpenAI对话服务 - 支持流式和非流式响应
- * 
+ * OpenAI对话服务类 - 支持流式和非流式响应
+ * <p>
+ * 本类是AI网关平台的核心服务之一，负责与OpenAI API进行交互，提供以下功能：
+ * 1. 非流式对话：一次性返回完整响应
+ * 2. 流式对话（SSE）：逐字返回响应，提供更好的用户体验
+ * 3. Token计数和费用计算
+ * 4. 调用日志记录
+ * 5. 余额结算和回滚
+ * </p>
+ *
+ * <p><b>业务流程：</b></p>
+ * <ol>
+ *   <li>接收用户请求（包含模型、消息等）</li>
+ *   <li>验证模型配置和可用性</li>
+ *   <li>构建OpenAI API请求体</li>
+ *   <li>调用OpenAI API（流式或非流式）</li>
+ *   <li>解析响应并提取内容、Token数</li>
+ *   <li>计算费用并结算余额</li>
+ *   <li>保存调用日志和计费记录</li>
+ *   <li>返回结果给用户</li>
+ * </ol>
+ *
+ * <p><b>异常处理：</b></p>
+ * <ul>
+ *   <li>API调用失败：回滚预扣余额，记录失败日志</li>
+ *   <li>网络超时：设置合理的超时时间，避免长时间等待</li>
+ *   <li>解析错误：捕获并记录异常，保证系统稳定性</li>
+ * </ul>
+ *
+ * <p><b>性能优化：</b></p>
+ * <ul>
+ *   <li>使用异步处理流式请求，避免阻塞主线程</li>
+ *   <li>合理设置超时时间，平衡用户体验和资源占用</li>
+ *   <li>使用StringBuilder高效拼接字符串</li>
+ * </ul>
+ *
  * @author AI Gateway Platform
+ * @version 1.0.0
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class OpenAiChatService {
 
-    private final ModelConfigService modelConfigService;
-    private final CallLogService callLogService;
-    private final BillingService billingService;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ModelConfigService modelConfigService;  // 模型配置服务，用于验证模型和获取API Key
+    private final CallLogService callLogService;          // 调用日志服务，用于保存调用记录
+    private final BillingService billingService;          // 计费服务，用于余额管理和结算
+    private final ObjectMapper objectMapper = new ObjectMapper();  // JSON序列化工具，用于构建请求和解析响应
 
     /**
      * 非流式对话
-     * 
-     * @param apiKey API Key
-     * @param userId 用户ID
-     * @param request 聊天请求
-     * @param requestId 请求ID（从拦截器传入）
-     * @return 响应内容
+     * <p>
+     * 本方法实现了一次性返回完整响应的对话功能。
+     * 适用于不需要实时显示生成过程的场景，如批量处理、后台任务等。
+     * </p>
+     *
+     * <p><b>执行流程：</b></p>
+     * <ol>
+     *   <li>记录开始时间，用于计算响应时长</li>
+     *   <li>验证模型名称，检查模型是否可用</li>
+     *   <li>构建请求体，包含消息、参数等</li>
+     *   <li>调用OpenAI API，发送HTTP POST请求</li>
+     *   <li>解析响应，提取内容、Token数等信息</li>
+     *   <li>计算费用，根据Token数和模型价格计算</li>
+     *   <li>结算余额，退还预扣金额与实际消费的差额</li>
+     *   <li>保存调用日志，记录成功信息</li>
+     *   <li>创建计费记录，记录余额变化</li>
+     *   <li>返回响应内容</li>
+     * </ol>
+     *
+     * <p><b>异常处理：</b></p>
+     * <ul>
+     *   <li>API调用失败：回滚预扣余额（结算金额为0），记录失败日志</li>
+     *   <li>网络超时：抛出RuntimeException，由全局异常处理器处理</li>
+     *   <li>JSON解析错误：捕获并记录异常，回滚余额</li>
+     * </ul>
+     *
+     * <p><b>事务保证：</b></p>
+     * <ul>
+     *   <li>预扣余额：在拦截器中完成，保证用户有足够余额</li>
+     *   <li>结算余额：使用Lua脚本保证原子性，避免并发问题</li>
+     *   <li>日志记录：即使发生异常，也会记录失败日志</li>
+     * </ul>
+     *
+     * @param apiKey  API Key，用于标识调用者身份
+     * @param userId  用户ID，用于计费和日志记录
+     * @param request 聊天请求，包含模型、消息、参数等
+     * @param requestId 请求ID，唯一标识一次请求，用于幂等性和结算
+     * @return 响应内容，AI生成的完整文本
+     * @throws RuntimeException 当API调用失败时抛出
      */
     public String chat(String apiKey, Long userId, ChatRequest request, String requestId) {
         long startTime = System.currentTimeMillis();
