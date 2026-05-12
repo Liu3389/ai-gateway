@@ -5,8 +5,12 @@ import com.ai.gateway.common.ResultCode;
 import com.ai.gateway.common.UserRole;
 import com.ai.gateway.dto.AssignAdminRequest;
 import com.ai.gateway.dto.SetFreeApiStrategyRequest;
+import com.ai.gateway.entity.BillingRecord;
+import com.ai.gateway.entity.CallLog;
+import com.ai.gateway.entity.ModelConfig;
 import com.ai.gateway.entity.User;
 import com.ai.gateway.exception.BusinessException;
+import com.ai.gateway.mapper.BillingRecordMapper;
 import com.ai.gateway.mapper.CallLogMapper;
 import com.ai.gateway.mapper.ModelConfigMapper;
 import com.ai.gateway.mapper.UserMapper;
@@ -20,6 +24,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -38,6 +43,7 @@ public class AdminService {
     private final UserMapper userMapper;
     private final CallLogMapper callLogMapper;
     private final ModelConfigMapper modelConfigMapper;
+    private final BillingRecordMapper billingRecordMapper;
     private final UserService userService;
 
     /**
@@ -286,28 +292,56 @@ public class AdminService {
         freeStrategyWrapper.isNotNull(User::getFreeApiStrategy);
         stats.setFreeStrategyUsers(userMapper.selectCount(freeStrategyWrapper));
 
-        // TODO: 活跃用户数需要结合call_log表查询，这里暂时设为0
-        stats.setActiveUsers(0L);
+        // 活跃用户数：最近7天有调用记录的去重用户数
+        LocalDateTime sevenDaysAgo = LocalDate.now().minusDays(7).atStartOfDay();
+        LambdaQueryWrapper<CallLog> activeWrapper = new LambdaQueryWrapper<>();
+        activeWrapper.select(CallLog::getUserId);
+        activeWrapper.ge(CallLog::getCreateTime, sevenDaysAgo);
+        List<Object> activeUserIds = callLogMapper.selectObjs(activeWrapper);
+        long activeUsers = activeUserIds != null ? activeUserIds.stream().distinct().count() : 0;
+        stats.setActiveUsers(activeUsers);
 
         // API调用统计
         stats.setTotalApiCalls(callLogMapper.selectCount(null));
 
         // 今日API调用次数
         LocalDateTime todayStart = LocalDate.now().atStartOfDay();
-        LambdaQueryWrapper<com.ai.gateway.entity.CallLog> todayWrapper = new LambdaQueryWrapper<>();
-        todayWrapper.ge(com.ai.gateway.entity.CallLog::getCreateTime, todayStart);
+        LambdaQueryWrapper<CallLog> todayWrapper = new LambdaQueryWrapper<>();
+        todayWrapper.ge(CallLog::getCreateTime, todayStart);
         stats.setTodayApiCalls(callLogMapper.selectCount(todayWrapper));
 
-        // 消费金额统计 - 简化处理，实际应该注入BillingRecordMapper
-        stats.setTotalRevenue(BigDecimal.ZERO);
-        stats.setTodayRevenue(BigDecimal.ZERO);
-        stats.setAvgCallCost(BigDecimal.ZERO);
+        // 消费金额统计：从 billing_record 表计算（仅扣费记录 type=1）
+        LambdaQueryWrapper<BillingRecord> deductWrapper = new LambdaQueryWrapper<>();
+        deductWrapper.eq(BillingRecord::getType, 1);
+        List<BillingRecord> allDeductRecords = billingRecordMapper.selectList(deductWrapper);
+        BigDecimal totalRevenue = allDeductRecords != null ? allDeductRecords.stream()
+                .map(BillingRecord::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add) : BigDecimal.ZERO;
+        stats.setTotalRevenue(totalRevenue);
+
+        // 今日消费金额
+        LambdaQueryWrapper<BillingRecord> todayDeductWrapper = new LambdaQueryWrapper<>();
+        todayDeductWrapper.eq(BillingRecord::getType, 1);
+        todayDeductWrapper.ge(BillingRecord::getCreateTime, todayStart);
+        List<BillingRecord> todayDeductRecords = billingRecordMapper.selectList(todayDeductWrapper);
+        BigDecimal todayRevenue = todayDeductRecords != null ? todayDeductRecords.stream()
+                .map(BillingRecord::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add) : BigDecimal.ZERO;
+        stats.setTodayRevenue(todayRevenue);
+
+        // 平均每次调用费用
+        long totalCalls = stats.getTotalApiCalls();
+        if (totalCalls > 0 && totalRevenue.compareTo(BigDecimal.ZERO) > 0) {
+            stats.setAvgCallCost(totalRevenue.divide(new BigDecimal(totalCalls), 6, RoundingMode.HALF_UP));
+        } else {
+            stats.setAvgCallCost(BigDecimal.ZERO);
+        }
 
         // 模型统计
         stats.setModelCount(modelConfigMapper.selectCount(null));
 
-        LambdaQueryWrapper<com.ai.gateway.entity.ModelConfig> activeModelWrapper = new LambdaQueryWrapper<>();
-        activeModelWrapper.eq(com.ai.gateway.entity.ModelConfig::getStatus, 1);
+        LambdaQueryWrapper<ModelConfig> activeModelWrapper = new LambdaQueryWrapper<>();
+        activeModelWrapper.eq(ModelConfig::getStatus, 1);
         stats.setActiveModelCount(modelConfigMapper.selectCount(activeModelWrapper));
 
         return stats;

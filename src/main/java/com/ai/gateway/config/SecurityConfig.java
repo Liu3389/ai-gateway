@@ -4,6 +4,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
@@ -40,26 +41,39 @@ public class SecurityConfig {
                 // 禁用CSRF（API服务通常不需要）
                 .csrf(csrf -> csrf.disable())
 
+                // 无状态会话（API不使用服务端Session）
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+
                 // 配置CORS
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
 
                 // 配置授权规则
+                // 注意：本系统使用自定义拦截器（ApiKeyAuthInterceptor）和Header（X-User-Id）进行身份认证，
+                // 而非 Spring Security 的内置认证机制。因此所有业务端点使用 permitAll()，
+                // 实际权限校验在拦截器和Service层完成。
                 .authorizeHttpRequests(auth -> auth
-                        // 公开接口
-                        .requestMatchers("/auth/**", "/user/register", "/user/login").permitAll()
+                        // 公开接口：注册、登录
+                        .requestMatchers("/auth/**").permitAll()
 
-                        // 管理员接口需要认证
-                        .requestMatchers("/admin/**").authenticated()
+                        // 管理员接口：Service层校验 X-User-Id + 角色
+                        .requestMatchers("/admin/**").permitAll()
 
-                        // API接口需要API Key（由拦截器处理）
-                        .requestMatchers("/chat/**", "/key/**").permitAll()
+                        // API接口：ApiKeyAuthInterceptor 校验 API Key + 限流 + 余额
+                        .requestMatchers("/chat/**").permitAll()
+
+                        // API Key管理接口：需传入 userId，Service层校验归属
+                        .requestMatchers("/api-key/**").permitAll()
+
+                        // 用户接口（充值等）
+                        .requestMatchers("/user/**").permitAll()
 
                         // Actuator监控端点
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
-                        .requestMatchers("/actuator/**").authenticated()
+                        .requestMatchers("/actuator/**").permitAll()
 
-                        // 其他所有请求需要认证
-                        .anyRequest().authenticated()
+                        // 其他所有请求
+                        .anyRequest().permitAll()
                 );
 
         return http.build();
@@ -72,8 +86,8 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // 允许的来源（生产环境应配置具体域名）
-        configuration.setAllowedOrigins(List.of("*"));
+        // 使用 allowedOriginPatterns 替代 allowedOrigins 以支持 allowCredentials
+        configuration.setAllowedOriginPatterns(List.of("*"));
 
         // 允许的方法
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));

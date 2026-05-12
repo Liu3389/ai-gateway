@@ -1,16 +1,15 @@
 package com.ai.gateway.service;
 
 import com.ai.gateway.common.Constants;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.scripting.support.ResourceScriptSource;
 import org.springframework.stereotype.Service;
 
-import jakarta.annotation.PostConstruct;
 import java.math.BigDecimal;
 import java.util.List;
 
@@ -24,7 +23,6 @@ import java.util.List;
 @RequiredArgsConstructor
 public class BillingService {
 
-    private final RedisTemplate<String, Object> redisTemplate;
     private final StringRedisTemplate stringRedisTemplate;
 
     private DefaultRedisScript<List> billingScript;
@@ -146,21 +144,14 @@ public class BillingService {
         try {
             String key = Constants.REDIS_USER_BALANCE_PREFIX + userId;
             log.debug("尝试从Redis获取余额: key={}", key);
-            
-            // 使用 RedisTemplate 读取
-            Object balanceObj = redisTemplate.opsForValue().get(key);
-            
-            log.debug("从Redis读取的余额: key={}, value={}", key, balanceObj);
-            
-            if (balanceObj == null) {
+
+            String balanceStr = stringRedisTemplate.opsForValue().get(key);
+
+            log.debug("从Redis读取的余额: key={}, value={}", key, balanceStr);
+
+            if (balanceStr == null) {
                 log.warn("Redis中余额为null: key={}", key);
                 return BigDecimal.ZERO;
-            }
-            
-            // 处理可能的序列化问题：如果是字符串带引号，去除引号
-            String balanceStr = balanceObj.toString();
-            if (balanceStr.startsWith("\"") && balanceStr.endsWith("\"")) {
-                balanceStr = balanceStr.substring(1, balanceStr.length() - 1);
             }
             
             BigDecimal result = new BigDecimal(balanceStr);
@@ -181,8 +172,7 @@ public class BillingService {
     public void syncUserBalanceToRedis(Long userId, BigDecimal balance) {
         try {
             String key = Constants.REDIS_USER_BALANCE_PREFIX + userId;
-            // 使用 RedisTemplate 写入，存储为纯字符串
-            redisTemplate.opsForValue().set(key, balance.toString());
+            stringRedisTemplate.opsForValue().set(key, balance.toPlainString());
             log.debug("同步余额到Redis: userId={}, balance={}", userId, balance);
         } catch (Exception e) {
             log.error("同步用户余额到Redis失败: userId={}", userId, e);

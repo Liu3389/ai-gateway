@@ -30,13 +30,15 @@ ALTER TABLE `user`
 ALTER TABLE `user`
     ADD COLUMN `allowed_free_models` text COMMENT '允许免费的模型列表（JSON格式），仅当freeApiStrategy为MODEL_SPECIFIC时有效' AFTER `free_strategy_end_time`;
 
--- 创建第一个超级管理员账号（密码: admin123，使用MD5加密）
+-- 创建第一个超级管理员账号（密码: admin123，使用BCrypt加密）
 -- 注意：实际使用时应该修改为更安全的密码
 INSERT INTO `user` (`username`, `password`, `email`, `balance`, `status`, `role`)
-VALUES ('superadmin', '0192023a7bbd73250516f069df18b500', 'superadmin@aiplatform.com', 0.0000, 1, 'SUPER_ADMIN')
+VALUES ('superadmin', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'superadmin@aiplatform.com',
+        0.0000, 1, 'SUPER_ADMIN')
 ON DUPLICATE KEY UPDATE `role` = 'SUPER_ADMIN';
 
 -- 可选：创建一个测试管理员账号（密码: admin123）
 INSERT INTO `user` (`username`, `password`, `email`, `balance`, `status`, `role`)
-VALUES ('admin', '0192023a7bbd73250516f069df18b500', 'admin@aiplatform.com', 0.0000, 1, 'ADMIN')
+VALUES ('admin', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'admin@aiplatform.com', 0.0000, 1,
+        'ADMIN')
 ON DUPLICATE KEY UPDATE `role` = 'ADMIN';

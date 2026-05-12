@@ -76,14 +76,23 @@ public class OpenAiChatService {
 
             // 计算费用
             BigDecimal cost = modelConfigService.calculateCost(modelConfig, inputTokens, outputTokens);
+
+            // 获取结算前余额
+            BigDecimal balanceBeforeSettle = billingService.getUserBalance(userId);
             
             // 结算余额（实际扣费，退还多余预扣金额）
             billingService.settleBalance(userId, requestId, cost);
             log.info("结算完成: userId={}, requestId={}, actualCost={}", userId, requestId, cost);
-            
-            // 保存调用日志
-            saveCallLog(apiKey, userId, request.getModel(), inputTokens, outputTokens, 
+
+            // 获取结算后余额
+            BigDecimal balanceAfterSettle = billingService.getUserBalance(userId);
+
+            // 保存调用日志和计费记录
+            Long callLogId = saveCallLog(apiKey, userId, request.getModel(), inputTokens, outputTokens, 
                        cost, System.currentTimeMillis() - startTime, true, null);
+
+            callLogService.createBillingRecord(userId, callLogId, cost,
+                    Constants.BILLING_TYPE_DEDUCT, balanceBeforeSettle, balanceAfterSettle);
 
             log.info("对话成功: userId={}, model={}, inputTokens={}, outputTokens={}, cost={}", 
                     userId, request.getModel(), inputTokens, outputTokens, cost);
@@ -94,12 +103,17 @@ public class OpenAiChatService {
             log.error("对话失败: userId={}, model={}", userId, request.getModel(), e);
             
             // 如果失败，回滚预扣的余额（结算金额为0）
+            BigDecimal balanceBeforeRollback = billingService.getUserBalance(userId);
             billingService.settleBalance(userId, requestId, BigDecimal.ZERO);
             log.info("余额回滚: userId={}, requestId={}", userId, requestId);
+            BigDecimal balanceAfterRollback = billingService.getUserBalance(userId);
             
             // 保存失败日志
-            saveCallLog(apiKey, userId, request.getModel(), 0, 0, BigDecimal.ZERO,
+            Long callLogId = saveCallLog(apiKey, userId, request.getModel(), 0, 0, BigDecimal.ZERO,
                        System.currentTimeMillis() - startTime, false, e.getMessage());
+
+            callLogService.createBillingRecord(userId, callLogId, BigDecimal.ZERO,
+                    Constants.BILLING_TYPE_DEDUCT, balanceBeforeRollback, balanceAfterRollback);
             
             throw new RuntimeException("对话失败: " + e.getMessage(), e);
         }
@@ -139,7 +153,16 @@ public class OpenAiChatService {
                 if (!response.isOk()) {
                     emitter.send(SseEmitter.event().name("error").data("API调用失败"));
                     // 回滚预扣余额
+                    BigDecimal balanceBeforeRollback = billingService.getUserBalance(userId);
                     billingService.settleBalance(userId, requestId, BigDecimal.ZERO);
+                    BigDecimal balanceAfterRollback = billingService.getUserBalance(userId);
+
+                    Long failCallLogId = saveCallLog(apiKey, userId, request.getModel(), 0, 0, BigDecimal.ZERO,
+                            0, false, "API调用失败: HTTP " + response.getStatus());
+
+                    callLogService.createBillingRecord(userId, failCallLogId, BigDecimal.ZERO,
+                            Constants.BILLING_TYPE_DEDUCT, balanceBeforeRollback, balanceAfterRollback);
+                    
                     emitter.complete();
                     return;
                 }
@@ -188,14 +211,23 @@ public class OpenAiChatService {
                 
                 // 计算费用
                 BigDecimal cost = modelConfigService.calculateCost(modelConfig, inputTokens, outputTokens);
+
+                // 获取结算前余额
+                BigDecimal balanceBeforeSettle = billingService.getUserBalance(userId);
                 
                 // 结算余额（实际扣费，退还多余预扣金额）
                 billingService.settleBalance(userId, requestId, cost);
                 log.info("流式对话结算完成: userId={}, requestId={}, actualCost={}", userId, requestId, cost);
+
+                // 获取结算后余额
+                BigDecimal balanceAfterSettle = billingService.getUserBalance(userId);
                 
                 // 保存调用日志
-                saveCallLog(apiKey, userId, request.getModel(), inputTokens, outputTokens,
+                Long callLogId = saveCallLog(apiKey, userId, request.getModel(), inputTokens, outputTokens,
                            cost, System.currentTimeMillis() - startTime, true, null);
+
+                callLogService.createBillingRecord(userId, callLogId, cost,
+                        Constants.BILLING_TYPE_DEDUCT, balanceBeforeSettle, balanceAfterSettle);
                 
                 // 发送完成事件
                 Map<String, Object> doneData = new HashMap<>();
@@ -215,10 +247,15 @@ public class OpenAiChatService {
                     emitter.send(SseEmitter.event().name("error").data("对话失败: " + e.getMessage()));
                     
                     // 回滚预扣余额
+                    BigDecimal balanceBeforeRollback = billingService.getUserBalance(userId);
                     billingService.settleBalance(userId, requestId, BigDecimal.ZERO);
-                    
-                    saveCallLog(apiKey, userId, request.getModel(), 0, 0, BigDecimal.ZERO,
+                    BigDecimal balanceAfterRollback = billingService.getUserBalance(userId);
+
+                    Long failCallLogId = saveCallLog(apiKey, userId, request.getModel(), 0, 0, BigDecimal.ZERO,
                                System.currentTimeMillis() - startTime, false, e.getMessage());
+
+                    callLogService.createBillingRecord(userId, failCallLogId, BigDecimal.ZERO,
+                            Constants.BILLING_TYPE_DEDUCT, balanceBeforeRollback, balanceAfterRollback);
                 } catch (IOException ex) {
                     log.error("发送错误事件失败", ex);
                 } finally {
@@ -278,8 +315,9 @@ public class OpenAiChatService {
 
     /**
      * 保存调用日志
+     * @return 调用日志ID
      */
-    private void saveCallLog(String apiKey, Long userId, String model, int inputTokens,
+    private Long saveCallLog(String apiKey, Long userId, String model, int inputTokens,
                              int outputTokens, BigDecimal cost, long duration, 
                              boolean success, String errorMessage) {
         CallLog callLog = new CallLog();
@@ -294,5 +332,6 @@ public class OpenAiChatService {
         callLog.setErrorMessage(errorMessage);
         
         callLogService.saveCallLog(callLog);
+        return callLog.getId();
     }
 }

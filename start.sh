@@ -1,4 +1,4 @@
-wo#!/bin/bash
+#!/bin/bash
 
 # AI Gateway Platform 快速启动脚本
 

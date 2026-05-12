@@ -1,17 +1,15 @@
 package com.ai.gateway.service;
 
-import cn.hutool.core.io.IoUtil;
 import com.ai.gateway.common.Constants;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.scripting.support.ResourceScriptSource;
 import org.springframework.stereotype.Service;
 
-import jakarta.annotation.PostConstruct;
 import java.util.Collections;
 
 /**
@@ -24,7 +22,6 @@ import java.util.Collections;
 @RequiredArgsConstructor
 public class RateLimitService {
 
-    private final RedisTemplate<String, Object> redisTemplate;
     private final StringRedisTemplate stringRedisTemplate;
 
     private DefaultRedisScript<Long> rateLimitScript;
@@ -79,13 +76,13 @@ public class RateLimitService {
     public Integer getRemainingRequests(String apiKey, Integer rateLimit) {
         try {
             String key = Constants.REDIS_RATE_LIMIT_PREFIX + apiKey;
-            Object currentCount = redisTemplate.opsForValue().get(key);
+            String currentCount = stringRedisTemplate.opsForValue().get(key);
             
             if (currentCount == null) {
                 return rateLimit;
             }
-            
-            int count = Integer.parseInt(currentCount.toString());
+
+            int count = Integer.parseInt(currentCount);
             return Math.max(0, rateLimit - count);
         } catch (Exception e) {
             log.error("获取剩余请求次数失败: apiKey={}", apiKey, e);

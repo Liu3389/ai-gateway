@@ -1,6 +1,7 @@
 package com.ai.gateway.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -20,7 +21,7 @@ public class SetFreeApiStrategyRequest implements Serializable {
     /**
      * 用户ID
      */
-    @NotBlank(message = "用户ID不能为空")
+    @NotNull(message = "用户ID不能为空")
     private Long userId;
 
     /**

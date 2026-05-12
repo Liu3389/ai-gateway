@@ -83,32 +83,47 @@ public class ApiKeyAuthInterceptor implements HandlerInterceptor {
 
             // 4. 余额检查和预扣（估算最大费用）
             log.info("步骤4: 余额检查...");
-            BigDecimal userBalance = billingService.getUserBalance(user.getId());
-            log.info("当前余额: userId={}, balance={}", user.getId(), userBalance);
-            
-            if (userBalance.compareTo(BigDecimal.ZERO) <= 0) {
-                log.warn("余额不足: userId={}, balance={}", user.getId(), userBalance);
-                writeErrorResponse(response, ResultCode.INSUFFICIENT_BALANCE);
-                return false;
+
+            // 检查用户免费策略
+            String freeStrategy = user.getFreeApiStrategy();
+            boolean isUnlimited = "UNLIMITED".equals(freeStrategy);
+
+            if (!isUnlimited) {
+                BigDecimal userBalance = billingService.getUserBalance(user.getId());
+                log.info("当前余额: userId={}, balance={}", user.getId(), userBalance);
+
+                if (userBalance.compareTo(BigDecimal.ZERO) <= 0) {
+                    log.warn("余额不足: userId={}, balance={}", user.getId(), userBalance);
+                    writeErrorResponse(response, ResultCode.INSUFFICIENT_BALANCE);
+                    return false;
+                }
+            } else {
+                log.info("用户拥有完全免费策略，跳过余额检查: userId={}", user.getId());
             }
 
             // 预扣余额（估算值，实际费用在请求结束后结算）
             String requestId = UUID.randomUUID().toString().replace("-", "");
-            BigDecimal preDeductAmount = new BigDecimal("0.1"); // 预设最大费用0.1美元
-            
-            log.info("步骤5: 开始预扣余额: userId={}, requestId={}, amount={}", user.getId(), requestId, preDeductAmount);
-            boolean preDeductSuccess = billingService.preDeductBalance(
-                    user.getId(), requestId, preDeductAmount, 300);
-            
-            log.info("预扣结果: success={}", preDeductSuccess);
-            
-            if (!preDeductSuccess) {
-                log.warn("预扣余额失败: userId={}, requestId={}", user.getId(), requestId);
-                writeErrorResponse(response, ResultCode.INSUFFICIENT_BALANCE);
-                return false;
+            BigDecimal preDeductAmount = isUnlimited ? BigDecimal.ZERO : new BigDecimal("0.1"); // 免费用户预扣0
+
+            log.info("步骤5: 开始预扣余额: userId={}, requestId={}, amount={}, freeStrategy={}",
+                    user.getId(), requestId, preDeductAmount, freeStrategy);
+
+            if (!isUnlimited) {
+                boolean preDeductSuccess = billingService.preDeductBalance(
+                        user.getId(), requestId, preDeductAmount, 300);
+
+                log.info("预扣结果: success={}", preDeductSuccess);
+
+                if (!preDeductSuccess) {
+                    log.warn("预扣余额失败: userId={}, requestId={}", user.getId(), requestId);
+                    writeErrorResponse(response, ResultCode.INSUFFICIENT_BALANCE);
+                    return false;
+                }
+
+                log.info("预扣余额成功: userId={}, requestId={}", user.getId(), requestId);
+            } else {
+                log.info("免费用户跳过预扣: userId={}, requestId={}", user.getId(), requestId);
             }
-            
-            log.info("预扣余额成功: userId={}, requestId={}", user.getId(), requestId);
 
             // 将用户信息和请求ID存入request属性，供后续使用
             request.setAttribute("userId", user.getId());

@@ -153,12 +153,14 @@ DEALLOCATE PREPARE alterIfNotExists;
 
 -- 第四步：创建或更新超级管理员账号
 INSERT INTO `user` (`username`, `password`, `email`, `balance`, `status`, `role`)
-VALUES ('superadmin', '0192023a7bbd73250516f069df18b500', 'superadmin@aiplatform.com', 0.0000, 1, 'SUPER_ADMIN')
+VALUES ('superadmin', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'superadmin@aiplatform.com',
+        0.0000, 1, 'SUPER_ADMIN')
 ON DUPLICATE KEY UPDATE `role` = 'SUPER_ADMIN';
 
 -- 可选：创建测试管理员账号
 INSERT INTO `user` (`username`, `password`, `email`, `balance`, `status`, `role`)
-VALUES ('admin', '0192023a7bbd73250516f069df18b500', 'admin@aiplatform.com', 0.0000, 1, 'ADMIN')
+VALUES ('admin', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'admin@aiplatform.com', 0.0000, 1,
+        'ADMIN')
 ON DUPLICATE KEY UPDATE `role` = 'ADMIN';
 
 -- 第五步：验证迁移结果
