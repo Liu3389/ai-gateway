@@ -55,12 +55,23 @@ code != 200  → 失败，显示 message 给用户
 
 ### 认证方式
 
-| 接口类型     | 认证方式                 | Header 键名   | 示例值                                   |
-|----------|----------------------|-------------|---------------------------------------|
-| Chat 对话  | API Key              | `X-API-Key` | `sk-2adbdb4f5ae04cacb9ea0466ac4b23f0` |
-| Admin 管理 | 用户 ID                | `X-User-Id` | `6`                                   |
-| Auth 认证  | 无（公开接口）              | -           | -                                     |
-| User 操作  | 无（通过 URL 参数传 userId） | -           | -                                     |
+| 接口类型    | 认证方式    | Header 键名      | 示例值                                   |
+|---------|---------|----------------|---------------------------------------|
+| Chat 对话 | API Key | `X-API-Key`    | `sk-2adbdb4f5ae04cacb9ea0466ac4b23f0` |
+| 所有业务接口  | 登录Token | `X-User-Token` | `a3a9e1242e8547a58da8aaf44358caa2`    |
+| Auth 认证 | 无（公开接口） | -              | -                                     |
+
+> **重要变更**：用户/APIKey/Admin 操作不再通过 URL 参数 `userId` 或 `X-User-Id` Header 传递身份，改为 `X-User-Token`
+> Header（登录时获得的 UUID 格式 Token，24h有效）。身份自动识别，无法伪造。
+
+### 前端登录流程
+
+```
+1. POST /auth/register   → 注册账号
+2. POST /auth/login      → 获取 token（存入 localStorage）
+3. 所有后续请求 Header 带上 X-User-Token: {token}
+4. Token 过期（24h）后重新登录
+```
 
 ---
 
@@ -160,7 +171,7 @@ POST /auth/login
   "code": 200,
   "message": "登录成功",
   "data": {
-    "token": "token_7",
+    "token": "a3a9e1242e8547a58da8aaf44358caa2",
     "userInfo": {
       "id": 7,
       "username": "myuser",
@@ -177,8 +188,8 @@ POST /auth/login
 }
 ```
 
-> **重要**：当前 Token 为简化格式 `token_{userId}`。前端应存储 `data.userInfo.id` 作为用户标识，后续 Admin 操作通过
-`X-User-Id` Header 传递。
+> **重要**：Token 为 UUID 格式（如 `a3a9e1242e8547a58da8aaf44358caa2`），登录成功后存入 `X-User-Token` Header。Token 存入
+> Redis，24小时过期，无法伪造。
 
 **失败示例：**
 
@@ -241,12 +252,12 @@ GET /auth/balance?userId={userId}
 ## 2. 用户模块 UserController
 
 > 路径前缀: `/user`  
-> 无需认证 Header（userId 通过 Query 参数传递）
+> **所有请求必须带 Header**: `X-User-Token: {token}`（登录返回的 Token，身份自动识别）
 
 ### 2.1 充值
 
 ```
-POST /user/recharge?userId={userId}&amount={amount}
+POST /user/recharge?amount={amount}
 ```
 
 | 参数     | 类型         | 必填 | 说明              |
@@ -928,10 +939,10 @@ while (true) {
 
 ### LoginResponseVO（登录响应）
 
-| 字段       | 类型         | 说明                    |
-|----------|------------|-----------------------|
-| token    | String     | 访问令牌 `token_{userId}` |
-| userInfo | UserInfoVO | 用户信息                  |
+| 字段       | 类型         | 说明                |
+|----------|------------|-------------------|
+| token    | String     | 访问令牌，UUID格式，24h有效 |
+| userInfo | UserInfoVO | 用户信息              |
 
 ### ApiKeyInfoVO（API Key 信息）
 
@@ -992,8 +1003,47 @@ while (true) {
 
 ## 前端最佳实践建议
 
-1. **统一请求封装**：封装一个 `api.post(endpoint, data)` 方法，自动处理 code !== 200 的情况
-2. **Token 存储**：登录后将 `userInfo.id` 存 localStorage，Admin 操作时放入 `X-User-Id` Header
-3. **充值后刷新余额**：调用充值接口成功后立即调用查询余额接口更新显示
-4. **SSE 处理**：流式对话使用 fetch + ReadableStream，逐步拼接 content 展示打字效果
-5. **错误处理**：根据 code 值显示对应中文 message，不需要额外映射
+1. **统一请求封装**：封装 `api.get(url)` / `api.post(url, data)` 方法，自动附加 `X-User-Token` Header
+2. **Token 存储**：登录后将 `token` 存入 localStorage，每次请求自动携带
+3. **Token 过期处理**：收到 401 时清除 token，跳转登录页
+4. **充值后刷新余额**：调用充值接口成功后立即调用查询余额接口更新显示
+5. **SSE 处理**：流式对话使用 fetch + ReadableStream，逐步拼接 content 展示打字效果
+6. **错误处理**：根据 code 值显示对应中文 message，不需要额外映射
+
+---
+
+## Docker 部署
+
+### 本机一键启动
+
+```bash
+./deploy.sh
+```
+
+### 导出镜像到 CentOS9 虚拟机
+
+```bash
+./deploy.sh export                    # 生成 ai-gateway-platform.tar
+scp ai-gateway-platform.tar root@VM_IP:/opt/ai-gateway/
+scp centos9-deploy.sh root@VM_IP:/opt/ai-gateway/
+scp docker-compose.yml root@VM_IP:/opt/ai-gateway/
+scp -r src/main/resources/sql/ root@VM_IP:/opt/ai-gateway/src/main/resources/sql/
+ssh root@VM_IP "cd /opt/ai-gateway && ./centos9-deploy.sh"
+```
+
+### Docker 容器说明
+
+| 容器               | 端口   | 说明                      |
+|------------------|------|-------------------------|
+| ai-gateway-app   | 8080 | Spring Boot 应用          |
+| ai-gateway-mysql | 3306 | MySQL 8.0（root/root123） |
+| ai-gateway-redis | 6379 | Redis 7（密码 redis123）    |
+
+### Docker 常用命令
+
+```bash
+docker compose up -d       # 启动
+docker compose down        # 停止
+docker compose logs -f app # 查看应用日志
+docker compose restart app # 重启应用
+```
