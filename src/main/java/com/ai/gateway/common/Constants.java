@@ -33,14 +33,29 @@ public class Constants {
     public static final String REDIS_USER_ROLE_PREFIX = "ai_gateway:user_role:";
 
     /**
+     * Redis Key前缀 - 登录Token
+     */
+    public static final String REDIS_TOKEN_PREFIX = "ai_gateway:token:";
+
+    /**
      * HTTP Header - API Key
      */
     public static final String HEADER_API_KEY = "X-API-Key";
 
     /**
-     * HTTP Header - Authorization
+     * HTTP Header - 用户Token
      */
-    public static final String HEADER_AUTHORIZATION = "Authorization";
+    public static final String HEADER_USER_TOKEN = "X-User-Token";
+
+    /**
+     * HTTP Header - 操作者用户ID（Admin用）
+     */
+    public static final String HEADER_USER_ID = "X-User-Id";
+
+    /**
+     * Token过期时间（24小时）
+     */
+    public static final Long TOKEN_EXPIRE_HOURS = 24L;
 
     /**
      * 默认限流阈值（每分钟请求数）

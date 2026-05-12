@@ -39,3 +39,19 @@ logs/
 *.swp
 *.swo
 *~
+
+# Application artifacts
+*.jar
+*.war
+app.log
+
+# Local config overrides
+application-local.yml
+application-*.yml
+
+# Test artifacts
+testdata.sql
+
+# IDE
+.vscode/
+*.code-workspace

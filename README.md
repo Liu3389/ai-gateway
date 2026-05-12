@@ -5,11 +5,11 @@ Spring Boot 3.2 + DeepSeek V4-Pro + Redis Lua 限流 + Token 级计费
 ## 快速启动
 
 ```bash
-# 1. 初始化数据库
-mysql -h 10.211.55.10 -u root -p123456 < src/main/resources/sql/schema.sql
+# 1. 初始化数据库（替换为你的MySQL连接信息）
+mysql -h YOUR_HOST -u YOUR_USER -p < src/main/resources/sql/schema.sql
 
-# 2. 插入测试数据
-mysql -h 10.211.55.10 -u root -p123456 ai_gateway < testdata.sql
+# 2. 插入测试数据（替换连接信息）
+mysql -h YOUR_HOST -u YOUR_USER -p ai_gateway < testdata.sql
 
 # 3. 编译运行
 export JAVA_HOME=$(/usr/libexec/java_home -v 21)

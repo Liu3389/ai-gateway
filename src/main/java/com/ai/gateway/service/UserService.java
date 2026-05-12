@@ -8,6 +8,7 @@ import com.ai.gateway.dto.UserRegisterRequest;
 import com.ai.gateway.entity.User;
 import com.ai.gateway.exception.BusinessException;
 import com.ai.gateway.mapper.UserMapper;
+import com.ai.gateway.vo.LoginResponseVO;
 import com.ai.gateway.vo.UserInfoVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -79,7 +81,7 @@ public class UserService {
      * @param request 登录请求
      * @return 用户信息
      */
-    public UserInfoVO login(UserLoginRequest request) {
+    public LoginResponseVO login(UserLoginRequest request) {
         // 查询用户
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(User::getUsername, request.getUsername());
@@ -99,13 +101,35 @@ public class UserService {
             throw new BusinessException(ResultCode.USER_DISABLED);
         }
 
+        // 生成随机Token并存入Redis（24小时过期）
+        String token = UUID.randomUUID().toString().replace("-", "");
+        String tokenKey = Constants.REDIS_TOKEN_PREFIX + token;
+        stringRedisTemplate.opsForValue().set(tokenKey, user.getId().toString(), Constants.TOKEN_EXPIRE_HOURS, TimeUnit.HOURS);
+
         // 缓存用户角色到Redis（24小时过期）
         String roleKey = Constants.REDIS_USER_ROLE_PREFIX + user.getId();
         stringRedisTemplate.opsForValue().set(roleKey, user.getRole(), 24, TimeUnit.HOURS);
 
         log.info("用户登录成功: username={}, userId={}", request.getUsername(), user.getId());
-        
-        return convertToVO(user);
+
+        UserInfoVO userInfoVO = convertToVO(user);
+        LoginResponseVO response = new LoginResponseVO(token, userInfoVO);
+        return response;
+    }
+
+    /**
+     * 验证Token并返回userId
+     */
+    public Long validateToken(String token) {
+        if (token == null || token.isEmpty()) {
+            throw new BusinessException(ResultCode.UNAUTHORIZED);
+        }
+        String tokenKey = Constants.REDIS_TOKEN_PREFIX + token;
+        String userIdStr = stringRedisTemplate.opsForValue().get(tokenKey);
+        if (userIdStr == null) {
+            throw new BusinessException(ResultCode.UNAUTHORIZED.getCode(), "Token无效或已过期");
+        }
+        return Long.parseLong(userIdStr);
     }
 
     /**

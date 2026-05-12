@@ -38,12 +38,7 @@ public class AuthController {
      */
     @PostMapping("/login")
     public Result<LoginResponseVO> login(@Valid @RequestBody UserLoginRequest request) {
-        UserInfoVO userInfo = userService.login(request);
-        
-        // 简化处理，实际应生成JWT token
-        String token = "token_" + userInfo.getId();
-        
-        LoginResponseVO response = new LoginResponseVO(token, userInfo);
+        LoginResponseVO response = userService.login(request);
         return Result.success("登录成功", response);
     }
 
