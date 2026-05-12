@@ -1,5 +1,6 @@
 package com.ai.gateway.config;
 
+import com.ai.gateway.interceptor.AdminAuthInterceptor;
 import com.ai.gateway.interceptor.ApiKeyAuthInterceptor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
@@ -16,6 +17,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class WebMvcConfig implements WebMvcConfigurer {
 
     private final ApiKeyAuthInterceptor apiKeyAuthInterceptor;
+    private final AdminAuthInterceptor adminAuthInterceptor;
 
     /**
      * 添加拦截器
@@ -25,6 +27,10 @@ public class WebMvcConfig implements WebMvcConfigurer {
         // API Key鉴权拦截器，拦截所有/chat/**路径
         registry.addInterceptor(apiKeyAuthInterceptor)
                 .addPathPatterns("/chat/**")
-                .excludePathPatterns("/auth/**", "/user/**");
+                .excludePathPatterns("/auth/**", "/user/**", "/admin/**");
+
+        // 管理员权限拦截器
+        registry.addInterceptor(adminAuthInterceptor)
+                .addPathPatterns("/admin/**");
     }
 }

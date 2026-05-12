@@ -1,8 +1,6 @@
-package com.ai.gateway.entity;
+package com.ai.gateway.dto;
 
-import com.baomidou.mybatisplus.annotation.IdType;
-import com.baomidou.mybatisplus.annotation.TableId;
-import com.baomidou.mybatisplus.annotation.TableName;
+import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -10,55 +8,25 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * 用户实体类
- * 
+ * 设置API免费策略请求
+ *
  * @author AI Gateway Platform
  */
 @Data
-@TableName("user")
-public class User implements Serializable {
+public class SetFreeApiStrategyRequest implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
     /**
-     * 主键ID
+     * 用户ID
      */
-    @TableId(type = IdType.AUTO)
-    private Long id;
-
-    /**
-     * 用户名
-     */
-    private String username;
-
-    /**
-     * 密码（加密存储）
-     */
-    private String password;
-
-    /**
-     * 邮箱
-     */
-    private String email;
-
-    /**
-     * 账户余额（美元）
-     */
-    private BigDecimal balance;
-
-    /**
-     * 状态：0-禁用，1-启用
-     */
-    private Integer status;
-
-    /**
-     * 用户角色：USER-普通用户，ADMIN-管理员，SUPER_ADMIN-超级管理员
-     */
-    private String role;
+    @NotBlank(message = "用户ID不能为空")
+    private Long userId;
 
     /**
      * API免费策略：UNLIMITED-完全免费，QUOTA_BASED-额度免费，COUNT_LIMITED-限次免费等
      */
+    @NotBlank(message = "免费策略不能为空")
     private String freeApiStrategy;
 
     /**
@@ -90,14 +58,4 @@ public class User implements Serializable {
      * 允许免费的模型列表（JSON格式），仅当freeApiStrategy为MODEL_SPECIFIC时有效
      */
     private String allowedFreeModels;
-
-    /**
-     * 创建时间
-     */
-    private LocalDateTime createTime;
-
-    /**
-     * 更新时间
-     */
-    private LocalDateTime updateTime;
 }

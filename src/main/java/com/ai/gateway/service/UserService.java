@@ -1,7 +1,8 @@
 package com.ai.gateway.service;
 
-import cn.hutool.crypto.SecureUtil;
+import com.ai.gateway.common.Constants;
 import com.ai.gateway.common.ResultCode;
+import com.ai.gateway.common.UserRole;
 import com.ai.gateway.dto.UserLoginRequest;
 import com.ai.gateway.dto.UserRegisterRequest;
 import com.ai.gateway.entity.User;
@@ -12,10 +13,13 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 用户服务类
@@ -29,6 +33,8 @@ public class UserService {
 
     private final UserMapper userMapper;
     private final BillingService billingService;
+    private final PasswordEncoder passwordEncoder;
+    private final StringRedisTemplate stringRedisTemplate;
 
     /**
      * 用户注册
@@ -50,11 +56,12 @@ public class UserService {
         // 创建新用户
         User user = new User();
         user.setUsername(request.getUsername());
-        // 使用MD5加密密码（实际生产环境应使用BCrypt）
-        user.setPassword(SecureUtil.md5(request.getPassword()));
+        // 使用BCrypt加密密码
+        user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setEmail(request.getEmail());
         user.setBalance(BigDecimal.ZERO);
         user.setStatus(1);
+        user.setRole(UserRole.USER.getCode()); // 默认为普通用户
 
         userMapper.insert(user);
         
@@ -83,8 +90,7 @@ public class UserService {
         }
 
         // 验证密码
-        String encryptedPassword = SecureUtil.md5(request.getPassword());
-        if (!encryptedPassword.equals(user.getPassword())) {
+        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             throw new BusinessException(ResultCode.LOGIN_ERROR);
         }
 
@@ -92,6 +98,10 @@ public class UserService {
         if (user.getStatus() == 0) {
             throw new BusinessException(ResultCode.USER_DISABLED);
         }
+
+        // 缓存用户角色到Redis（24小时过期）
+        String roleKey = Constants.REDIS_USER_ROLE_PREFIX + user.getId();
+        stringRedisTemplate.opsForValue().set(roleKey, user.getRole(), 24, TimeUnit.HOURS);
 
         log.info("用户登录成功: username={}, userId={}", request.getUsername(), user.getId());
         
@@ -182,6 +192,18 @@ public class UserService {
         userMapper.updateById(user);
         
         log.debug("更新用户余额: userId={}, newBalance={}", userId, newBalance);
+    }
+
+    /**
+     * 根据用户名查询用户
+     *
+     * @param username 用户名
+     * @return 用户实体
+     */
+    public User getUserByUsername(String username) {
+        LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(User::getUsername, username);
+        return userMapper.selectOne(wrapper);
     }
 
     /**

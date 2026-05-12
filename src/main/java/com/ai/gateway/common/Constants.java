@@ -28,6 +28,11 @@ public class Constants {
     public static final String REDIS_BILLING_PRE_DEDUCT_PREFIX = "ai_gateway:billing_pre_deduct:";
 
     /**
+     * Redis Key前缀 - 用户角色
+     */
+    public static final String REDIS_USER_ROLE_PREFIX = "ai_gateway:user_role:";
+
+    /**
      * HTTP Header - API Key
      */
     public static final String HEADER_API_KEY = "X-API-Key";

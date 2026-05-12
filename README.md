@@ -6,6 +6,17 @@
 
 一个基于 Spring Boot 3.2.x 的高性能 AI 模型统一接入网关，支持多厂商模型路由、SSE 流式响应、Redis Lua 分布式限流和 Token 级别计费。
 
+## 📚 文档导航
+
+**不知道从哪开始？查看 [📖 文档导航中心](DOCUMENT_NAVIGATION.md)**
+
+### 快速链接
+
+- 📘 **新手入门**: [README.md](README.md) | [QUICK_REFERENCE.md](QUICK_REFERENCE.md)
+- 👨‍💼 **管理员功能**: [ADMIN_GUIDE.md](ADMIN_GUIDE.md) | [ADMIN_QUICK_REFERENCE.md](ADMIN_QUICK_REFERENCE.md)
+- 🔧 **部署运维**: [DEPLOYMENT.md](DEPLOYMENT.md) | [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
+- 💾 **数据库迁移**: [DATABASE_MIGRATION.md](DATABASE_MIGRATION.md)
+
 ## 🚀 核心特性
 
 - ✅ **多厂商模型接入** - 支持 OpenAI、DeepSeek 等主流 AI 模型

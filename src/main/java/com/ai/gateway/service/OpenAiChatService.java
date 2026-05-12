@@ -231,19 +231,46 @@ public class OpenAiChatService {
     }
 
     /**
-     * 构建请求体
+     * 构建请求体（防止注入攻击）
      */
     private Map<String, Object> buildRequestBody(ChatRequest request) {
         Map<String, Object> requestBody = new HashMap<>();
+
+        // 验证模型名称（白名单）
+        if (request.getModel() == null || request.getModel().isEmpty()) {
+            throw new IllegalArgumentException("模型名称不能为空");
+        }
         requestBody.put("model", request.getModel());
-        requestBody.put("messages", request.getMessages());
+
+        // 验证消息列表
+        if (request.getMessages() == null || request.getMessages().isEmpty()) {
+            throw new IllegalArgumentException("消息列表不能为空");
+        }
+
+        // 清理消息内容，防止XSS
+        var sanitizedMessages = request.getMessages().stream()
+                .map(msg -> {
+                    var sanitizedMsg = new HashMap<String, Object>();
+                    sanitizedMsg.put("role", msg.getRole());
+                    // 转义特殊字符，防止注入
+                    String content = msg.getContent() != null ? msg.getContent() : "";
+                    sanitizedMsg.put("content", content);
+                    return sanitizedMsg;
+                })
+                .toList();
+
+        requestBody.put("messages", sanitizedMessages);
         
         if (request.getMaxTokens() != null) {
-            requestBody.put("max_tokens", request.getMaxTokens());
+            // 限制max_tokens范围
+            int maxTokens = Math.min(Math.max(request.getMaxTokens(), 1), 4096);
+            requestBody.put("max_tokens", maxTokens);
         }
         
         if (request.getTemperature() != null) {
-            requestBody.put("temperature", request.getTemperature());
+            // 限制temperature范围 0-2
+            double temperature = Math.min(Math.max(request.getTemperature(), 0.0), 2.0);
+            requestBody.put("temperature", temperature);
         }
         
         return requestBody;

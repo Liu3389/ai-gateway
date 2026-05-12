@@ -1,8 +1,5 @@
-package com.ai.gateway.entity;
+package com.ai.gateway.vo;
 
-import com.baomidou.mybatisplus.annotation.IdType;
-import com.baomidou.mybatisplus.annotation.TableId;
-import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -10,31 +7,24 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * 用户实体类
- * 
+ * 管理员信息VO
+ *
  * @author AI Gateway Platform
  */
 @Data
-@TableName("user")
-public class User implements Serializable {
+public class AdminInfoVO implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
     /**
-     * 主键ID
+     * 用户ID
      */
-    @TableId(type = IdType.AUTO)
     private Long id;
 
     /**
      * 用户名
      */
     private String username;
-
-    /**
-     * 密码（加密存储）
-     */
-    private String password;
 
     /**
      * 邮箱
@@ -57,22 +47,22 @@ public class User implements Serializable {
     private String role;
 
     /**
-     * API免费策略：UNLIMITED-完全免费，QUOTA_BASED-额度免费，COUNT_LIMITED-限次免费等
+     * API免费策略
      */
     private String freeApiStrategy;
 
     /**
-     * 免费额度（美元），仅当freeApiStrategy为QUOTA_BASED时有效
+     * 免费额度（美元）
      */
     private BigDecimal freeQuota;
 
     /**
-     * 每日调用次数限制，仅当freeApiStrategy为COUNT_LIMITED时有效
+     * 每日调用次数限制
      */
     private Integer dailyCallLimit;
 
     /**
-     * 每月调用次数限制，仅当freeApiStrategy为COUNT_LIMITED时有效
+     * 每月调用次数限制
      */
     private Integer monthlyCallLimit;
 
@@ -87,7 +77,7 @@ public class User implements Serializable {
     private LocalDateTime freeStrategyEndTime;
 
     /**
-     * 允许免费的模型列表（JSON格式），仅当freeApiStrategy为MODEL_SPECIFIC时有效
+     * 允许免费的模型列表（JSON格式）
      */
     private String allowedFreeModels;
 
