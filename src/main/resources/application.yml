@@ -7,12 +7,11 @@ spring:
   application:
     name: ai-gateway-platform
   
-  # MySQL数据库配置（生产环境请使用环境变量）
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/ai_gateway?useUnicode=true&characterEncoding=utf8&useSSL=true&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=false&requireSSL=true
-    username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD:}
+    url: jdbc:mysql://10.211.55.10:3306/ai_gateway?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: root
+    password: 123456
     hikari:
       maximum-pool-size: 20
       minimum-idle: 5
@@ -20,12 +19,11 @@ spring:
       idle-timeout: 600000
       max-lifetime: 1800000
 
-  # Redis配置（生产环境请使用环境变量）
   data:
     redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:}
+      host: 10.211.55.10
+      port: 6379
+      password: 123321
       database: 0
       timeout: 3000ms
       lettuce:
@@ -35,14 +33,12 @@ spring:
           max-idle: 10
           min-idle: 5
 
-# MyBatis-Plus配置
 mybatis-plus:
   mapper-locations: classpath*:/mapper/**/*.xml
   type-aliases-package: com.ai.gateway.entity
   configuration:
     map-underscore-to-camel-case: true
-    # 生产环境关闭SQL日志
-    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
   global-config:
     db-config:
       id-type: auto
@@ -50,53 +46,34 @@ mybatis-plus:
       logic-delete-value: 1
       logic-not-delete-value: 0
 
-# OpenAI API配置
 openai:
   api-url: https://api.openai.com/v1/chat/completions
-  # 请替换为实际的OpenAI API Key
   api-key: sk-your-openai-api-key-here
   models:
     gpt-3.5-turbo:
-      # 每千Token价格（美元）
       price-per-1k-tokens: 0.002
       max-tokens: 4096
     gpt-4o:
       price-per-1k-tokens: 0.01
       max-tokens: 128000
 
-# 限流配置
 rate-limit:
-  # 默认每分钟请求限制
   default-rate: 100
-  # Lua脚本路径
   lua-script: classpath:lua/rate_limit.lua
 
-# 计费配置
 billing:
-  # Lua脚本路径
   lua-script: classpath:lua/billing.lua
-  # 预扣余额比例（防止并发超扣）
   pre-deduct-ratio: 1.2
 
-# 日志配置
 logging:
   level:
-    com.ai.gateway: info
-    com.ai.gateway.mapper: warn
-    org.springframework.security: warn
+    com.ai.gateway: debug
+    com.ai.gateway.mapper: debug
   pattern:
     console: '%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{50} - %msg%n'
-  file:
-    name: logs/ai-gateway.log
-    max-size: 10MB
-    max-history: 30
 
-# Actuator监控配置（生产环境需配置安全访问）
 management:
   endpoints:
     web:
       exposure:
         include: health,info,metrics
-  endpoint:
-    health:
-      show-details: when-authorized
