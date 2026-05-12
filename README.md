@@ -47,13 +47,13 @@ Spring Boot 3.2 + MyBatis-Plus + Docker + Redis Lua 限流 + UUID Token 认证 +
 ```bash
 # 1. 传输文件
 scp ai-gateway-images.tar user@TARGET_IP:/opt/ai-gateway/
-scp docker-compose.yml  user@TARGET_IP:/opt/ai-gateway/
-scp docker-deploy.sh    user@TARGET_IP:/opt/ai-gateway/
+scp docker/docker-compose.yml  user@TARGET_IP:/opt/ai-gateway/docker/
+scp docker/deploy-vm.sh    user@TARGET_IP:/opt/ai-gateway/docker/
 mkdir -p /tmp/sql && cp src/main/resources/sql/*.sql /tmp/sql/
 scp -r /tmp/sql user@TARGET_IP:/opt/ai-gateway/
 
 # 2. 目标机器执行
-ssh user@TARGET_IP "cd /opt/ai-gateway && bash docker-deploy.sh"
+ssh user@TARGET_IP "cd /opt/ai-gateway && bash docker/deploy-vm.sh"
 ```
 
 > 目标机器**无需安装 JDK/Maven/MySQL/Redis**，只需能运行 Docker。
@@ -76,13 +76,23 @@ ssh user@TARGET_IP "cd /opt/ai-gateway && bash docker-deploy.sh"
 | ai-gateway-mysql | 3307→3306 | root/root123        |
 | ai-gateway-redis | 6380→6379 | 密码 redis123         |
 
-### Docker 常用命令
+### CentOS9 操作速查（直接复制粘贴）
 
 ```bash
-ssh root@10.211.55.10 "cd /opt/ai-gateway && docker compose ps"        # 查看状态
-ssh root@10.211.55.10 "cd /opt/ai-gateway && docker compose logs -f app"  # 查看日志
-ssh root@10.211.55.10 "cd /opt/ai-gateway && docker compose restart"    # 重启
-ssh root@10.211.55.10 "cd /opt/ai-gateway && docker compose down"       # 停止
+# ===== 停止应用 =====
+ssh root@10.211.55.10 "cd /opt/ai-gateway && docker compose down"
+
+# ===== 启动应用 =====
+ssh root@10.211.55.10 "cd /opt/ai-gateway && docker compose up -d"
+
+# ===== 重启应用 =====
+ssh root@10.211.55.10 "cd /opt/ai-gateway && docker compose restart"
+
+# ===== 查看日志 =====
+ssh root@10.211.55.10 "cd /opt/ai-gateway && docker compose logs -f app"
+
+# ===== 查看状态 =====
+ssh root@10.211.55.10 "cd /opt/ai-gateway && docker compose ps"
 ```
 
 ---
@@ -133,18 +143,24 @@ export JAVA_HOME=/path/to/jdk21
 
 ```
 ├── deploy.sh                     # 本机 Docker 一键部署
-├── docker-compose.yml            # 服务编排
-├── docker-deploy.sh              # 目标机器自动部署（deploy.sh 自动生成）
-├── docker-stop.sh                # 停止 Docker 服务
-├── Dockerfile                    # 应用镜像定义
-├── .dockerignore                 # Docker 构建忽略
 ├── start.sh                      # 本地开发启动（非Docker）
 ├── stop.sh                       # 本地开发停止
-├── check_env.sh                  # 环境连通性检查
-├── init_db.sh                    # 数据库初始化
-├── API_TEST.apifox.json          # Apifox 一键导入
-├── API_DOCUMENTATION.md          # 接口文档
+├── docker/                       # 🐳 Docker 相关
+│   ├── Dockerfile                #   应用镜像定义
+│   ├── docker-compose.yml        #   服务编排
+│   ├── deploy-vm.sh              #   VM 一键部署
+│   └── stop.sh                   #   停止 Docker 服务
+├── scripts/                      # 🔧 辅助脚本
+│   ├── check_env.sh              #   环境连通性检查
+│   ├── init_db.sh                #   数据库初始化
+│   ├── deploy-vm.sh              #   VM 裸机部署
+│   └── _vm_start.sh              #   VM 启动脚本
+├── API_DOCUMENTATION.md          # 接口文档（前端唯一参考）
+├── DOCKER_GUIDE.md               # Docker 入门指南
 ├── README.md
+├── API_TEST.apifox.json          # Apifox 一键导入
+├── .dockerignore
+├── pom.xml
 └── src/
     ├── main/java/com/ai/gateway/
     │   ├── common/               # Result/枚举/Constants

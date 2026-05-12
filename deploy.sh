@@ -86,7 +86,7 @@ pull_with_fallback "$IMAGE_REDIS" "docker.m.daocloud.io/library/redis:7-alpine"
 
 # ======================== 构建应用镜像 ========================
 echo -e "${YELLOW}[3/5] 构建应用镜像 ($DOCKER_PLATFORM)...${NC}"
-docker build --platform "$DOCKER_PLATFORM" -t ai-gateway-platform:latest .
+docker build --platform "$DOCKER_PLATFORM" -f docker/Dockerfile -t ai-gateway-platform:latest .
 echo -e "${GREEN}✅ 应用镜像构建完成${NC}"
 
 # ======================== 导出 tar（本机和 export 都需要）=======================
@@ -159,16 +159,16 @@ if [ "$1" = "export" ]; then
   echo ""
   echo "生成的文件:"
   echo "  1. ai-gateway-images.tar  镜像包 (${SIZE})"
-  echo "  2. docker-compose.yml     服务编排"
-  echo "  3. docker-deploy.sh       VM 一键部署"
+  echo "  2. docker/docker-compose.yml     服务编排"
+  echo "  3. docker/deploy-vm.sh       VM 一键部署"
   echo ""
   echo "传输到 CentOS9 虚拟机 (10.211.55.10):"
   echo "  scp ai-gateway-images.tar root@10.211.55.10:/opt/ai-gateway/"
-  echo "  scp docker-compose.yml root@10.211.55.10:/opt/ai-gateway/"
-  echo "  scp docker-deploy.sh root@10.211.55.10:/opt/ai-gateway/"
+  echo "  scp docker/docker-compose.yml root@10.211.55.10:/opt/ai-gateway/docker/"
+  echo "  scp docker/deploy-vm.sh root@10.211.55.10:/opt/ai-gateway/docker/"
   echo "  mkdir -p /tmp/sql && cp src/main/resources/sql/schema.sql src/main/resources/sql/docker-model-config.sql /tmp/sql/"
   echo "  scp -r /tmp/sql root@10.211.55.10:/opt/ai-gateway/"
-  echo "  ssh root@10.211.55.10 'cd /opt/ai-gateway && bash docker-deploy.sh'"
+  echo "  ssh root@10.211.55.10 'cd /opt/ai-gateway && bash docker/deploy-vm.sh'"
   exit 0
 fi
 
