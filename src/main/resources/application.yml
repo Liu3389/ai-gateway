@@ -1,0 +1,106 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+
+spring:
+  application:
+    name: ai-gateway-platform
+
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/ai_gateway?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: root
+    password: 123456
+    hikari:
+      maximum-pool-size: 30
+      minimum-idle: 10
+      idle-timeout: 300000
+      connection-timeout: 5000
+      max-lifetime: 1800000
+      pool-name: AiGatewayHikariCP
+      connection-test-query: SELECT 1
+      validation-timeout: 3000
+      leak-detection-threshold: 60000
+
+  data:
+    redis:
+      host: localhost
+      port: 6380
+      password: redis123
+      database: 0
+      timeout: 3000ms
+      lettuce:
+        pool:
+          max-active: 50
+          max-wait: 3000ms
+          max-idle: 20
+          min-idle: 10
+        shutdown-timeout: 200ms
+
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  type-aliases-package: com.ai.gateway.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+rate-limit:
+  default-rate: 100
+  lua-script: classpath:lua/rate_limit.lua
+
+billing:
+  lua-script: classpath:lua/billing.lua
+  pre-deduct-ratio: 1.2
+
+# 应用配置
+app:
+  init-test-data: false  # 是否每次启动时重置数据库并生成测试数据（默认false，开发时可设为true）
+
+# API 加密配置
+api:
+  encryption:
+    key: ${API_ENCRYPTION_KEY:7uOekwFsZ1poTzhXDgTVnOrkIy4Hf8wwwrGKh/Cu18Y=}  # AES-256 密钥（Base64编码），建议通过环境变量设置
+
+# CORS 跨域配置
+cors:
+  allowed-origins: ${ALLOWED_ORIGINS:*}  # 允许的域名，多个用逗号分隔。生产环境建议明确指定域名
+
+logging:
+  level:
+    root: WARN
+    com.ai.gateway: INFO
+    com.ai.gateway.mapper: WARN
+    org.springframework.web: WARN
+    org.springframework.security: WARN
+  file:
+    name: logs/ai-gateway.log
+  logback:
+    rollingpolicy:
+      max-file-size: 100MB
+      max-history: 30
+      total-size-cap: 3GB
+  pattern:
+    console: '{"time":"%d{yyyy-MM-dd HH:mm:ss.SSS}","level":"%-5level","thread":"%thread","logger":"%logger{36}","msg":"%msg"}%n'
+    file: '{"time":"%d{yyyy-MM-dd HH:mm:ss.SSS}","level":"%-5level","thread":"%thread","logger":"%logger{36}","msg":"%msg"}%n'
+
+aliyun:
+  oss:
+    endpoint:
+    access-key-id:
+    access-key-secret:
+    bucket-name:
+    domain:
+
+

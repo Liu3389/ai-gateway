@@ -1,0 +1,56 @@
+# Maven
+target/
+!.mvn/wrapper/maven-wrapper.jar
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+
+# IDE - IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# IDE - Eclipse
+.classpath
+.project
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Environment variables
+.env
+.env.local
+
+# Temporary files
+*.tmp
+*.swp
+*.swo
+*~
+*.pid
+*.pyc
+__pycache__/
+
+# One-time scripts
+check_*.py
+fix_*.py
+verify_*.py
+
+# Reports (keep docs/ only)
+CONSISTENCY_CHECK_REPORT.md
+OPTIMIZATION_COMPLETION_SUMMARY.md
+REDIS_OPTIMIZATION.md
+TRANSACTIONAL_ROLLBACK_FIX_COMPLETE.md
+problem.md
